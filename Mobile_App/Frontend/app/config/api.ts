@@ -21,7 +21,7 @@ const getEnvironment = (): 'development' | 'staging' | 'production' => {
 
 // API URLs for different environments
 const API_URLS = {
-    development: 'https://m1p2hrxd-5000.asse.devtunnels.ms/api',
+    development: 'https://5w64q84c-5000.inc1.devtunnels.ms/api',
     staging: 'https://your-staging-api.com/api',
     production: 'https://your-production-api.com/api',
 };
@@ -123,6 +123,11 @@ export const API_ENDPOINTS = {
         DELETE: '/bids',
         BY_PRODUCT: '/bids/product',
         BY_USER: '/bids/user',
+    },
+
+    // Recommendations
+    RECOMMENDATIONS: {
+        USER: '/recommendations',
     },
 
     // KYC

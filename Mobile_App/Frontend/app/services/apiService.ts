@@ -572,6 +572,36 @@ export const messagesApi = {
     },
 };
 
+// Recommendations API calls
+export interface RecommendationItem {
+    productId: string;
+    score: number;
+    reason: string;
+    product?: {
+        productId: string;
+        title: string;
+        category: string;
+        tags: string[];
+        price: number;
+        location: string;
+        freshnessScore: number;
+        isSold: boolean;
+    };
+}
+
+export interface RecommendationResponse {
+    success: boolean;
+    count: number;
+    data: RecommendationItem[];
+}
+
+export const recommendationsApi = {
+    getUserRecommendations: async (limit = 5): Promise<ApiResponse<RecommendationResponse>> => {
+        const query = `${API_ENDPOINTS.RECOMMENDATIONS.USER}?limit=${limit}`;
+        return authenticatedRequest<RecommendationResponse>(query);
+    },
+};
+
 // Export all API services
 export const apiService = {
     auth: authApi,
@@ -579,6 +609,7 @@ export const apiService = {
     products: productsApi,
     messages: messagesApi,
     kyc: kycApi,
+    recommendations: recommendationsApi,
 };
 
 // Export default API service

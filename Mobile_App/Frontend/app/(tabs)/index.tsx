@@ -1,5 +1,5 @@
 import { globalStyles } from '@/Styles/globalStyles';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dimensions, ScrollView, View, ActivityIndicator, Text } from 'react-native';
 import { SimpleGrid } from "react-native-super-grid";
 import CategoryList from '../Components/HomePage/CategoryList';
@@ -11,6 +11,7 @@ import TrasnportCard from '../Components/HomePage/TrasnportCard';
 // Redux imports
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchProducts } from '../store/slices/productSlice';
+import { fetchRecommendations } from '../store/slices/recommendationSlice';
 const categoriesData = [
   { id: 1, title: 'All Products', icon: require('../../assets/images/home/allproducts.png') },
   { id: 2, title: 'Marble', icon: require('../../assets/images/home/marble.png') },
@@ -25,12 +26,24 @@ const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState(1);
   const dispatch = useAppDispatch();
   const { products, isLoading, error } = useAppSelector(state => state.product);
+  const { user } = useAppSelector(state => state.auth);
+  const {
+    items: recommendations,
+    isLoading: recommendationsLoading,
+    error: recommendationsError,
+  } = useAppSelector(state => state.recommendation);
 
   // Fetch products when component mounts
   useEffect(() => {
     console.log('Fetching products from API...');
     dispatch(fetchProducts());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (user?.role === 'buyer') {
+      dispatch(fetchRecommendations(10));
+    }
+  }, [dispatch, user?._id, user?.role]);
 
   // Log when products are loaded
   useEffect(() => {
@@ -67,10 +80,82 @@ const Home = () => {
 
     return transformedProduct;
   });
+
+  const recommendedCards = useMemo(() => {
+    return recommendations
+      .filter((rec) => rec.product)
+      .map((rec) => {
+        const product = rec.product!;
+        const imageSource = product.image
+          ? { uri: product.image }
+          : require('../../assets/images/home/featureCard.png');
+
+        return {
+          key: `rec-${rec.productId}`,
+          props: {
+            id: rec.productId,
+            image: imageSource,
+            title: product.title,
+            description: rec.reason,
+            price: product.price ? product.price.toString() : '0',
+            location: product.location,
+            rating: Number((rec.score * 5).toFixed(1)) || 4.5,
+            availability: product.freshnessScore ? `${Math.round(product.freshnessScore * 100)}% fresh` : undefined,
+          },
+        };
+      });
+  }, [recommendations]);
   return (
     <View style={[globalStyles.container]}>
       <HomeHeader title="TradeWay" />
       <ScrollView>
+        {user?.role === 'buyer' && (
+          <View style={{ marginHorizontal: width * 0.03, marginBottom: height * 0.02 }}>
+            <FeatureText title="Recommended For You" />
+            {recommendationsLoading ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#0758C2" />
+                <Text style={{ marginTop: 10, color: '#666' }}>Fetching personalized picks...</Text>
+              </View>
+            ) : recommendationsError ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: 'red', textAlign: 'center' }}>
+                  {recommendationsError}
+                </Text>
+              </View>
+            ) : recommendedCards.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', paddingVertical: 8 }}>
+                  {recommendedCards.map(({ key, props }, index) => (
+                    <View key={key} style={{ marginRight: index === recommendedCards.length - 1 ? 0 : 12 }}>
+                      <ProductCard
+                        id={props.id}
+                        image={props.image}
+                        title={props.title}
+                        description={props.description}
+                        price={props.price}
+                        location={props.location}
+                        rating={props.rating}
+                        availability={props.availability}
+                        verified
+                        onViewDetails={() => console.log('View details for', props.id)}
+                        isFavorite={false}
+                        onToggleFavorite={() => console.log('Toggle favorite for recommendation', props.id)}
+                        compact
+                      />
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#666', textAlign: 'center' }}>
+                  We will show tailored suggestions once you engage with products.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         <CategoryList
           categories={categoriesData}
           selectedCategory={selectedCategory}
