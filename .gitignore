@@ -1,0 +1,217 @@
+# ============================================
+# Dependencies
+# ============================================
+# Node modules for all projects
+node_modules/
+**/node_modules/
+admin/client/tradeway-admin/node_modules/
+admin/server/node_modules/
+Mobile_App/Frontend/node_modules/
+Mobile_App/server/node_modules/
+
+# Package lock files (uncomment if you want to ignore them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ============================================
+# Environment Variables & Secrets
+# ============================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+*.env
+
+# Firebase Service Account Keys (Sensitive)
+**/firebase-adminsdk-*.json
+**/*firebase-adminsdk*.json
+tradeway-89ff8-firebase-adminsdk-*.json
+**/google-services.json
+google-services.json
+
+# API Keys and Config Files
+config.json
+secrets.json
+*.key
+*.pem
+*.p12
+*.jks
+*.mobileprovision
+
+# ============================================
+# Build Artifacts & Distribution
+# ============================================
+# Frontend Builds
+dist/
+dist-ssr/
+build/
+.next/
+out/
+.nuxt/
+.vite/
+
+# Admin Frontend (Vite)
+admin/client/tradeway-admin/dist/
+admin/client/tradeway-admin/dist-ssr/
+
+# Mobile App Builds
+Mobile_App/Frontend/dist/
+Mobile_App/Frontend/web-build/
+Mobile_App/Frontend/.expo/
+Mobile_App/Frontend/.expo-shared/
+
+# Native Builds
+ios/
+android/
+*.ipa
+*.apk
+*.aab
+
+# ============================================
+# Expo/React Native Specific
+# ============================================
+.expo/
+.expo-shared/
+expo-env.d.ts
+.expo/
+*.orig.*
+.kotlin/
+
+# Metro Bundler
+.metro-health-check*
+.metro/
+
+# ============================================
+# Temporary Files & Directories
+# ============================================
+tmp/
+temp/
+**/tmp/
+**/temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ============================================
+# Logs
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log.*
+
+# ============================================
+# IDE & Editor Files
+# ============================================
+# VSCode
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# IntelliJ IDEA / WebStorm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.swn
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# OS Files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# TypeScript
+# ============================================
+*.tsbuildinfo
+*.tsbuildinfo.*
+
+# ============================================
+# Testing
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+.jest/
+*.test.js.snap
+
+# ============================================
+# Database
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ============================================
+# Cloudinary & Uploads
+# ============================================
+uploads/
+**/uploads/
+cloudinary_uploads/
+
+# ============================================
+# Misc
+# ============================================
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.local
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Optional: Keep package-lock.json files (uncomment the node_modules section above if you want to ignore lock files)
+# If you want to ignore package-lock.json files, uncomment the following:
+# **/package-lock.json
+

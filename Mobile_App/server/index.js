@@ -1,0 +1,75 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import morgan from 'morgan';
+import helmet from 'helmet';
+import { createServer } from 'http';
+import fileUpload from 'express-fileupload';
+import admin from 'firebase-admin';
+
+import connectDB from './config/db.js';
+import userRoutes from './routes/userRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
+import productRoutes from './routes/productRoutes.js';
+import bidRoutes from './routes/bidRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import kycRoutes from './routes/kycRoutes.js';
+// import groupRoutes from './routes/groupRoutes.js';
+// import errorHandler from './middleware/errorHandler.js';
+// import initSocket from './utils/socket.js';
+
+dotenv.config();
+
+// ✅ Initialize Firebase Admin
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert('./tradeway-89ff8-firebase-adminsdk-fbsvc-9ff38d3882.json'),
+    });
+}
+
+const app = express();
+const httpServer = createServer(app);
+
+// ✅ Middleware
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(cors({
+    origin: '*'
+}));
+
+
+// ✅ File upload
+app.use(fileUpload({
+    useTempFiles: false, // Keep files in memory for Cloudinary
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+}));
+
+// ✅ Cloudinary config is handled in cloudinaryConfig.js
+
+// ✅ Routes
+app.use('/api/auth', userRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/bids', bidRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/kyc', kycRoutes);
+// app.use('/api/groups', groupRoutes);
+
+// ✅ Error handling middleware (optional)
+// app.use(errorHandler);
+
+// ✅ Initialize Socket.io (optional)
+// initSocket(httpServer);
+
+// ✅ Start server after DB connection
+connectDB()
+    .then(() => {
+        const PORT = process.env.PORT || 5000;
+        httpServer.listen(PORT, () => {
+            console.log(`✅ Server running on port ${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error('❌ Database connection failed:', err);
+    });

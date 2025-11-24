@@ -1,0 +1,82 @@
+{
+  "expo": {
+    "name": "Frontend",
+    "slug": "Frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/Splash/splash_blue.png",
+    "scheme": "frontend",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.tradeway.fyp",
+      "supportsTablet": true,
+      "icon": "./assets/images/Splash/splash_blue.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "We need your location to share it with your group.",
+        "NSMicrophoneUsageDescription": "This app requires access to your microphone to send voice messages.",
+        "NSCameraUsageDescription": "This app uses the camera to let you take photos.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select pictures.",
+        "NSPhotoLibraryAddUsageDescription": "This app saves photos to your library."
+      }
+    },
+    "android": {
+      "package": "com.tradeway.fyp",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/Splash/splash_blue.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "allowBackup": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/Splash/splash_blue.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/Splash/splash_blue.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/Splash/splash_blue.png",
+          "color": "#ffffff",
+          "defaultChannel": "default",
+          "androidMode": "default",
+          "androidCollapsedTitle": "#{unread_notifications} new interactions"
+        }
+      ],
+      "@react-native-google-signin/google-signin",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "69d4dec9-6b50-45a1-bd1d-d7e19f146c6e"
+      }
+    }
+  }
+}
