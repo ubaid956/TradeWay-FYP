@@ -15,6 +15,10 @@ import bidRoutes from './routes/bidRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import kycRoutes from './routes/kycRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import adminAuthRoutes from './routes/adminAuthRoutes.js';
+import industryRoutes from './routes/industryRoutes.js';
+import { protect, requireRoles } from './middleware/auth.js';
 // import groupRoutes from './routes/groupRoutes.js';
 // import errorHandler from './middleware/errorHandler.js';
 // import initSocket from './utils/socket.js';
@@ -56,6 +60,9 @@ app.use('/api/bids', bidRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin', protect, requireRoles('admin'), adminRoutes);
+app.use('/api/industry', protect, requireRoles('admin'), industryRoutes);
 // app.use('/api/groups', groupRoutes);
 
 // ✅ Error handling middleware (optional)

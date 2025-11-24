@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import LineChart from "../components/LineChart";
-import axios from "axios"; // Import axios
+import api from "../lib/api";
 import "./Forecasts.css";
-
-const api = axios; // Use axios as 'api'
 
 function Forecasts() {
 	const [category, setCategory] = useState("Carrara");

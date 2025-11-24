@@ -54,6 +54,13 @@ const protect = async (req, res, next) => {
 };
 
 
+const requireRoles = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  return next();
+};
+
 const socketAuth = async (socket, next) => {
   try {
     const token = socket.handshake.auth.token;
@@ -71,4 +78,4 @@ const socketAuth = async (socket, next) => {
   }
 };
 
-export { protect, socketAuth };
+export { protect, socketAuth, requireRoles };

@@ -12,6 +12,12 @@ export const register = async (req, res) => {
   try {
     const { name, email, phone, password, role } = req.body;
 
+    const allowedRoles = ['buyer', 'vendor', 'driver'];
+    const requestedRole = allowedRoles.includes(role) ? role : 'buyer';
+    if (role === 'admin') {
+      return res.status(403).json({ message: 'Admin users cannot be created via this endpoint.' });
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
@@ -25,7 +31,7 @@ export const register = async (req, res) => {
       email,
       password: hashedPassword,
       phone,
-      role
+      role: requestedRole
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
