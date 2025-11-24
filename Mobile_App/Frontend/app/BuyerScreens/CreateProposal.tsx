@@ -116,19 +116,10 @@ const CreateProposal = () => {
 
             console.log('Submitting proposal:', proposalData);
 
-            // Note: You'll need to add the createBid function to your apiService
-            const response = await fetch('https://3d488f18f175.ngrok-free.app/api/bids', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(proposalData),
-            });
+            // Use API service for creating proposal
+            const response = await apiService.bids.createBid(proposalData);
 
-            const result = await response.json();
-
-            if (response.ok && result.success) {
+            if (response.success) {
                 Alert.alert(
                     'Proposal Sent!',
                     'Your proposal has been sent to the seller successfully.',
@@ -140,7 +131,7 @@ const CreateProposal = () => {
                     ]
                 );
             } else {
-                throw new Error(result.message || 'Failed to submit proposal');
+                throw new Error(response.error || response.message || 'Failed to submit proposal');
             }
         } catch (error) {
             console.error('Error submitting proposal:', error);

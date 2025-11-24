@@ -501,6 +501,22 @@ const Profile = () => {
 
         </View>
 
+        {user.role === 'vendor' && (
+          <View style={{ backgroundColor: 'white', marginTop: height * 0.03 }}>
+            <Text style={{ marginLeft: width * 0.04, fontSize: 16, marginTop: height * 0.02, color: '#6b7280' }}>
+              VENDOR MANAGEMENT
+            </Text>
+            <View style={{ backgroundColor: '#f4f4f4' }}>
+              <Profile_cart
+                onPress={() => router.push('/VendorScreens/VendorProposals')}
+                iconComponent={MaterialIcons}
+                iconName="description"
+                text="Product Proposals"
+              />
+            </View>
+          </View>
+        )}
+
         <View style={{ backgroundColor: 'white', marginTop: height * 0.03 }}>
           <Text style={{ marginLeft: width * 0.04, fontSize: 16, marginTop: height * 0.02, color: '#6b7280' }}>
             SETTINGS & SUPPORT

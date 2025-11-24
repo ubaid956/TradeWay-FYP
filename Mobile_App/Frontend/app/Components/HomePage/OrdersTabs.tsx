@@ -3,8 +3,19 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const tabs = ['All Orders', 'Active', 'Completed', 'Cancelled'];
 
-const OrderTabs: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('Active');
+type Props = {
+  activeTab?: string;
+  onChange?: (tab: string) => void;
+};
+
+const OrderTabs: React.FC<Props> = ({ activeTab: controlledActive, onChange }) => {
+  const [uncontrolledActive, setUncontrolledActive] = useState('All Orders');
+  const activeTab = controlledActive ?? uncontrolledActive;
+
+  const handlePress = (tab: string) => {
+    if (onChange) onChange(tab);
+    if (controlledActive === undefined) setUncontrolledActive(tab);
+  };
 
   return (
     <View style={styles.container}>
@@ -12,7 +23,7 @@ const OrderTabs: React.FC = () => {
         <TouchableOpacity
           key={tab}
           style={[styles.tabButton, activeTab === tab && styles.activeTab]}
-          onPress={() => setActiveTab(tab)}
+          onPress={() => handlePress(tab)}
         >
           <Text style={[styles.tabText, activeTab === tab && styles.activeText]}>
             {tab}

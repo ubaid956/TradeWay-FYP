@@ -7,7 +7,7 @@ import Order from '../models/Order.js';
 export const createBid = async (req, res) => {
     try {
         const { productId, bidAmount, quantity, message } = req.body;
-        const bidderId = req.user.id;
+        const bidderId = req.user._id || req.user.id;
 
         // Validate required fields
         if (!productId || !bidAmount || !quantity) {
@@ -109,7 +109,7 @@ export const createBid = async (req, res) => {
 export const getBidsForProduct = async (req, res) => {
     try {
         const { productId } = req.params;
-        const sellerId = req.user.id;
+        const sellerId = req.user._id || req.user.id;
 
         // Verify that the user is the seller of the product
         const product = await Product.findById(productId);
@@ -165,7 +165,7 @@ export const getBidsForProduct = async (req, res) => {
 // Get bids by bidder (for buyers)
 export const getBidsByBidder = async (req, res) => {
     try {
-        const bidderId = req.user.id;
+        const bidderId = req.user._id || req.user.id;
         const { page = 1, limit = 10, status } = req.query;
 
         const filter = { bidder: bidderId };
@@ -206,7 +206,7 @@ export const getBidsByBidder = async (req, res) => {
 export const acceptBid = async (req, res) => {
     try {
         const { bidId } = req.params;
-        const sellerId = req.user.id;
+        const sellerId = req.user._id || req.user.id;
 
         const bid = await Bid.findById(bidId).populate('product');
         if (!bid) {
@@ -332,7 +332,7 @@ export const acceptBid = async (req, res) => {
 export const rejectBid = async (req, res) => {
     try {
         const { bidId } = req.params;
-        const sellerId = req.user.id;
+        const sellerId = req.user._id || req.user.id;
 
         const bid = await Bid.findById(bidId).populate('product');
         if (!bid) {
@@ -392,7 +392,7 @@ export const rejectBid = async (req, res) => {
 export const withdrawBid = async (req, res) => {
     try {
         const { bidId } = req.params;
-        const bidderId = req.user.id;
+        const bidderId = req.user._id || req.user.id;
 
         const bid = await Bid.findById(bidId);
         if (!bid) {
@@ -438,10 +438,67 @@ export const withdrawBid = async (req, res) => {
     }
 };
 
+// Get all proposals for vendor (across all their products)
+export const getVendorProposals = async (req, res) => {
+    try {
+        const sellerId = req.user._id || req.user.id;
+        const { page = 1, limit = 20, status } = req.query;
+
+        // Get all products by this seller
+        const sellerProducts = await Product.find({ seller: sellerId }).select('_id title');
+        const productIds = sellerProducts.map(product => product._id);
+
+        if (productIds.length === 0) {
+            return res.json({
+                success: true,
+                data: [],
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: 0,
+                    totalProposals: 0
+                }
+            });
+        }
+
+        // Build filter
+        const filter = { product: { $in: productIds } };
+        if (status) filter.status = status;
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const bids = await Bid.find(filter)
+            .populate('bidder', 'name email phone pic location')
+            .populate('product', 'title price images seller')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await Bid.countDocuments(filter);
+
+        res.json({
+            success: true,
+            data: bids,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages: Math.ceil(total / parseInt(limit)),
+                totalProposals: total
+            }
+        });
+
+    } catch (error) {
+        console.error('Get vendor proposals error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching vendor proposals',
+            error: error.message
+        });
+    }
+};
+
 // Get bid statistics for seller
 export const getBidStats = async (req, res) => {
     try {
-        const sellerId = req.user.id;
+        const sellerId = req.user._id || req.user.id;
 
         // Get all products by this seller
         const sellerProducts = await Product.find({ seller: sellerId }).select('_id');
@@ -493,7 +550,7 @@ export const getBidStats = async (req, res) => {
 // Get bid statistics for bidder
 export const getBidderStats = async (req, res) => {
     try {
-        const bidderId = req.user.id;
+        const bidderId = req.user._id || req.user.id;
 
         const stats = await Bid.aggregate([
             { $match: { bidder: bidderId } },

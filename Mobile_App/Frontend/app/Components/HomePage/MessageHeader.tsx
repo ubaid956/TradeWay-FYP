@@ -21,9 +21,14 @@ const MessageHeader = ({
 }) => {
   const renderAvatar = () => {
     if (profileImage) {
+      // Handle both URI strings and require() objects
+      const imageSource = typeof profileImage === 'string' 
+        ? { uri: profileImage } 
+        : profileImage;
+      
       return (
         <Image
-          source={{ uri: profileImage }}
+          source={imageSource}
           style={styles.avatarImage}
           resizeMode="cover"
         />

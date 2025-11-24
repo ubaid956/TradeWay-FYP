@@ -19,6 +19,7 @@ import { useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
+import { API_BASE_URL } from '../config/api';
 
 import MessageHeader from '../Components/HomePage/MessageHeader';
 
@@ -31,10 +32,11 @@ const ChatMessage = () => {
   const [input, setInput] = useState('');
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigation = useNavigation();
 
-  // Get token from Redux store
-  const { token } = useAppSelector(state => state.auth);
+  // Get token and current user from Redux store
+  const { token, user: currentUser } = useAppSelector(state => state.auth);
 
   useEffect(() => {
     if (token) {
@@ -46,38 +48,53 @@ const ChatMessage = () => {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !userId) return;
 
     const fetchUserAndMessages = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
         console.log('Chat: Fetching user data for userId:', userId);
+        console.log('Chat: Current logged-in user:', currentUser?._id);
         console.log('Chat: Product context - productId:', productId);
 
+        // Fetch the other user's profile
         const userRes = await axios.get(
-          `https://3d488f18f175.ngrok-free.app/api/auth/users/${userId}`,
+          `${API_BASE_URL}/auth/users/${userId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        setUser(userRes.data.data);
-        console.log('Chat: User data loaded:', userRes.data.data);
+        
+        const userData = userRes.data.data || userRes.data;
+        setUser(userData);
+        console.log('Chat: User data loaded:', userData);
 
+        // Fetch messages between current user and the other user
         const messagesRes = await axios.get(
-          `https://3d488f18f175.ngrok-free.app/api/messages/private/${userId}`,
+          `${API_BASE_URL}/messages/private/${userId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
 
-        const formattedMessages = messagesRes.data.map((msg) => ({
-          id: msg._id,
-          text: msg.text,
-          type: msg.sender._id === userId ? 'received' : 'sent',
-          time: new Date(msg.createdAt).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        }));
+        const messagesData = messagesRes.data.data || messagesRes.data || [];
+        const currentUserId = currentUser?._id || currentUser?.id;
+
+        const formattedMessages = messagesData.map((msg) => {
+          const senderId = msg.sender?._id || msg.sender || msg.senderId;
+          const isSent = senderId === currentUserId;
+          
+          return {
+            id: msg._id || msg.id,
+            text: msg.text || msg.message || '',
+            type: isSent ? 'sent' : 'received',
+            time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          };
+        });
 
         // Add product context message if this is a new conversation and productId is provided
         if (formattedMessages.length === 0 && productId) {
@@ -91,24 +108,33 @@ const ChatMessage = () => {
         }
 
         setMessages(formattedMessages);
+        console.log('Chat: Messages loaded:', formattedMessages.length);
       } catch (error) {
         console.error('Error loading chat:', error);
+        setError(error.response?.data?.message || error.message || 'Failed to load chat');
+        Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to load chat');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchUserAndMessages();
-  }, [userId, token, productId]);
+  }, [userId, token, productId, currentUser?._id]);
 
   const handleSend = async () => {
     if (!input.trim() || !token) return;
 
+    const messageText = input.trim();
+    const tempId = Date.now().toString();
+    
     const newMessage = {
-      id: Date.now().toString(),
-      text: input,
+      id: tempId,
+      text: messageText,
       type: 'sent',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
+    // Optimistically add message to UI
     setMessages((prev) => [...prev, newMessage]);
     setInput('');
 
@@ -118,23 +144,44 @@ const ChatMessage = () => {
 
     try {
       console.log('Sending message to userId:', userId);
-      console.log('Message text:', input);
+      console.log('Message text:', messageText);
 
-      await axios.post(
-        'https://3d488f18f175.ngrok-free.app/api/messages/private',
-        { recipientId: userId, text: input },
+      const response = await axios.post(
+        `${API_BASE_URL}/messages/private`,
+        { recipientId: userId, text: messageText },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      console.log('Message sent successfully');
+      console.log('Message sent successfully:', response.data);
+
+      // Replace temp message with actual message from server
+      if (response.data) {
+        const serverMessage = response.data.data || response.data;
+        setMessages((prev) => {
+          const filtered = prev.filter(msg => msg.id !== tempId);
+          return [...filtered, {
+            id: serverMessage._id || serverMessage.id || tempId,
+            text: serverMessage.text || messageText,
+            type: 'sent',
+            time: new Date(serverMessage.createdAt || Date.now()).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          }];
+        });
+      }
     } catch (err) {
       console.error('Error sending message:', err);
+      
+      // Remove the optimistic message if sending failed
+      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      
       if (err.response?.status === 401) {
         Alert.alert('Session Expired', 'Please login again');
-        // Remove the message from UI if sending failed
-        setMessages((prev) => prev.filter(msg => msg.id !== newMessage.id));
+      } else {
+        Alert.alert('Error', err.response?.data?.message || 'Failed to send message. Please try again.');
       }
     }
   };
@@ -158,13 +205,85 @@ const ChatMessage = () => {
     </View>
   );
 
-  if (isLoading || !token) {
+  if (isLoading && !user) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10, color: '#666' }}>Loading chat...</Text>
       </View>
     );
   }
+
+  if (!token) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#666' }}>Authentication required</Text>
+      </View>
+    );
+  }
+
+  if (error && !user) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ color: '#d32f2f', textAlign: 'center', marginBottom: 10 }}>{error}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setError(null);
+            setIsLoading(true);
+            // Retry loading
+            if (token && userId) {
+              const fetchUserAndMessages = async () => {
+                try {
+                  const userRes = await axios.get(
+                    `${API_BASE_URL}/auth/users/${userId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  setUser(userRes.data.data || userRes.data);
+                  
+                  const messagesRes = await axios.get(
+                    `${API_BASE_URL}/messages/private/${userId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  const messagesData = messagesRes.data.data || messagesRes.data || [];
+                  const currentUserId = currentUser?._id || currentUser?.id;
+                  const formattedMessages = messagesData.map((msg) => {
+                    const senderId = msg.sender?._id || msg.sender || msg.senderId;
+                    return {
+                      id: msg._id || msg.id,
+                      text: msg.text || msg.message || '',
+                      type: senderId === currentUserId ? 'sent' : 'received',
+                      time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                    };
+                  });
+                  setMessages(formattedMessages);
+                } catch (err) {
+                  setError(err.response?.data?.message || err.message);
+                } finally {
+                  setIsLoading(false);
+                }
+              };
+              fetchUserAndMessages();
+            }
+          }}
+          style={{ padding: 10, backgroundColor: '#007AFF', borderRadius: 8 }}
+        >
+          <Text style={{ color: 'white' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Get user's profile image or use default
+  const profileImage = user?.pic && user.pic !== 'null' && user.pic !== 'undefined'
+    ? user.pic 
+    : null; // MessageHeader will handle fallback
+  
+  const userInitials = user?.name 
+    ? user.name.slice(0, 2).toUpperCase() 
+    : 'US';
 
   return (
     <View style={{ flex: 1 }}>
@@ -178,10 +297,13 @@ const ChatMessage = () => {
             <MessageHeader
               onBackPress={() => navigation.goBack()}
               userName={user?.name || 'User'}
-              timestamp=""
+              timestamp={user?.lastActive ? new Date(user.lastActive).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : ''}
               onMenuPress={() => console.log('Menu pressed')}
-              profileImage="https://randomuser.me/api/portraits/women/44.jpg"
-              userInitials={user?.name?.slice(0, 2).toUpperCase() || 'US'}
+              profileImage={profileImage}
+              userInitials={userInitials}
             />
 
             <FlatList

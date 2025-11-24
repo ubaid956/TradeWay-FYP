@@ -113,9 +113,11 @@ export const API_ENDPOINTS = {
         DELETE: '/orders',
         BY_ID: '/orders',
         BY_USER: '/orders/user',
+        SELLER: '/orders/seller',
+        BUYER: '/orders/buyer',
     },
 
-    // Bids
+    // Bids/Proposals
     BIDS: {
         LIST: '/bids',
         CREATE: '/bids',
@@ -123,6 +125,12 @@ export const API_ENDPOINTS = {
         DELETE: '/bids',
         BY_PRODUCT: '/bids/product',
         BY_USER: '/bids/user',
+        MY_BIDS: '/bids/my-bids',
+        VENDOR_PROPOSALS: '/bids/vendor/proposals',
+        ACCEPT: '/bids',
+        REJECT: '/bids',
+        WITHDRAW: '/bids',
+        STATS: '/bids/stats',
     },
 
     // KYC

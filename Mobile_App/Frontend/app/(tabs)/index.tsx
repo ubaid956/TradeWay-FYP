@@ -71,11 +71,11 @@ const Home = () => {
     <View style={[globalStyles.container]}>
       <HomeHeader title="TradeWay" />
       <ScrollView>
-        <CategoryList
+        {/* <CategoryList
           categories={categoriesData}
           selectedCategory={selectedCategory}
           onCategoryPress={setSelectedCategory}
-        />
+        /> */}
         <View style={{ marginHorizontal: width * 0.03, }}>
 
 
@@ -156,7 +156,7 @@ const Home = () => {
               </Text>
             </View>
           )}
-          <FeatureText title="Transport Services" />
+          {/* <FeatureText title="Transport Services" />
           <View style={{ marginBottom: height * 0.02 }}>
           </View>
 
@@ -179,7 +179,7 @@ const Home = () => {
             rating={4.9}
             availability="1000"
             specilization="Specialized in marble transport"
-          />
+          /> */}
 
         </View>
       </ScrollView>

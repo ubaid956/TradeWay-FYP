@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Types for API responses
 export interface ApiResponse<T = any> {
     success: boolean;
-    data: T;
+    data: T | null;
     message?: string;
     error?: string;
 }
@@ -104,7 +104,8 @@ const authenticatedRequest = async <T = any>(
         // If token is not provided, try to get it from AsyncStorage as fallback
         let authToken = token;
         if (!authToken) {
-            authToken = await AsyncStorage.getItem('token');
+            const stored = await AsyncStorage.getItem('token');
+            if (stored) authToken = stored;
         }
 
         if (!authToken) {
@@ -112,7 +113,7 @@ const authenticatedRequest = async <T = any>(
         }
 
         const url = buildApiUrl(endpoint);
-        const headers = getAuthHeaders(authToken);
+        const headers = getAuthHeaders(authToken!);
 
         // Decode JWT token to see its contents
         try {
@@ -572,6 +573,83 @@ export const messagesApi = {
     },
 };
 
+// Bids/Proposals API calls
+export const bidsApi = {
+    // Create a new bid/proposal
+    createBid: async (bidData: { productId: string; bidAmount: number; quantity: number; message?: string }): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(API_ENDPOINTS.BIDS.CREATE, {
+            method: 'POST',
+            body: JSON.stringify(bidData),
+        });
+    },
+    // Get vendor's proposals (all products)
+    getVendorProposals: async (status?: string, page = 1, limit = 20): Promise<ApiResponse<any>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.append('page', page.toString());
+        queryParams.append('limit', limit.toString());
+        if (status) queryParams.append('status', status);
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.VENDOR_PROPOSALS}?${queryParams}`);
+    },
+    // Get buyer's own bids
+    getMyBids: async (status?: string, page = 1, limit = 20): Promise<ApiResponse<any>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.append('page', page.toString());
+        queryParams.append('limit', limit.toString());
+        if (status) queryParams.append('status', status);
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.MY_BIDS}?${queryParams}`);
+    },
+    // Get bids for a specific product
+    getBidsForProduct: async (productId: string, status?: string): Promise<ApiResponse<any>> => {
+        const queryParams = status ? `?status=${status}` : '';
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.BY_PRODUCT}/${productId}${queryParams}`);
+    },
+    // Accept a proposal
+    acceptBid: async (bidId: string, message?: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.ACCEPT}/${bidId}/accept`, {
+            method: 'PATCH',
+            body: JSON.stringify({ message }),
+        });
+    },
+    // Reject a proposal
+    rejectBid: async (bidId: string, message?: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.REJECT}/${bidId}/reject`, {
+            method: 'PATCH',
+            body: JSON.stringify({ message }),
+        });
+    },
+    // Withdraw a bid (buyer action)
+    withdrawBid: async (bidId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.WITHDRAW}/${bidId}/withdraw`, {
+            method: 'PATCH',
+        });
+    },
+    // Get bid statistics
+    getBidStats: async (): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(API_ENDPOINTS.BIDS.STATS);
+    },
+};
+
+// Orders API calls
+export const ordersApi = {
+    getSellerOrders: async (status?: string, page = 1, limit = 20): Promise<ApiResponse<any>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.append('page', page.toString());
+        queryParams.append('limit', limit.toString());
+        if (status) queryParams.append('status', status);
+        return authenticatedRequest<any>(`${API_ENDPOINTS.ORDERS.SELLER}?${queryParams}`);
+    },
+    getOrderById: async (orderId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.ORDERS.BY_ID}/${orderId}`);
+    },
+    getBuyerOrders: async (status?: string, page = 1, limit = 20): Promise<ApiResponse<any>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.append('page', page.toString());
+        queryParams.append('limit', limit.toString());
+        if (status) queryParams.append('status', status);
+        return authenticatedRequest<any>(`${API_ENDPOINTS.ORDERS.BUYER}?${queryParams}`);
+    },
+};
+
 // Export all API services
 export const apiService = {
     auth: authApi,
@@ -579,6 +657,8 @@ export const apiService = {
     products: productsApi,
     messages: messagesApi,
     kyc: kycApi,
+    bids: bidsApi,
+    orders: ordersApi,
 };
 
 // Export default API service

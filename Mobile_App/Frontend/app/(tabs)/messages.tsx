@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text, FlatList } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { globalStyles } from '@/Styles/globalStyles';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import MessageComponent from '../Components/HomePage/MessagesComonent';
+import { API_BASE_URL } from '../config/api';
+
+const defaultAvatar = require('../../assets/images/home/user.png');
 
 const Messages = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,19 +20,25 @@ const Messages = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
+        const token =
+          (await AsyncStorage.getItem('token')) ||
+          (await AsyncStorage.getItem('userToken'));
         if (!token) {
           setError('Authentication token not found.');
+          setLoading(false);
           return;
         }
 
-        const response = await axios.get('https://3d488f18f175.ngrok-free.app/api/auth/users', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await axios.get(
+          `${API_BASE_URL.replace(/\/$/, '')}/auth/users`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-        setUsers(response.data.data);
+        setUsers(response.data.data || response.data || []);
       } catch (err) {
-        setError(err.message);
+        setError(err.response?.data?.message || err.message || 'Failed to load users');
         console.error('Error fetching users:', err);
       } finally {
         setLoading(false);
@@ -40,7 +49,14 @@ const Messages = () => {
   }, []);
 
   const handleMessagePress = (user) => {
-    navigation.navigate('HomeScreens/ChatMessage', { userId: user._id });
+    if (!user?._id) {
+      console.error('Invalid user data:', user);
+      return;
+    }
+    router.push({
+      pathname: '/HomeScreens/ChatMessage',
+      params: { userId: user._id },
+    });
   };
 
   if (loading) {
@@ -65,16 +81,23 @@ const Messages = () => {
       <FlatList
         data={users}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <MessageComponent
-            name={item.name}
-            message={item.lastPreviewMessage}
-            time={item.lastPreviewTime}
-            unreadCount={0}
-            profileImage={require('../../assets/images/home/user.png')}
-            onPress={() => handleMessagePress(item)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const profileImage =
+            item?.pic && item.pic !== 'null'
+              ? { uri: item.pic }
+              : defaultAvatar;
+
+          return (
+            <MessageComponent
+              name={item.name || 'User'}
+              message={item.lastPreviewMessage || 'Tap to start chatting'}
+              time={item.lastPreviewTime || ''}
+              unreadCount={item.unreadCount || 0}
+              profileImage={profileImage}
+              onPress={() => handleMessagePress(item)}
+            />
+          );
+        }}
       />
     </View>
   );

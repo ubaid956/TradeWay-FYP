@@ -42,7 +42,7 @@ const HomeHeader = ({ title, placeholder, orders, profile }) => {
                     >
                         <Ionicons name="settings" size={25} color="white" />
                     </TouchableOpacity>
-                ) : !orders && (
+                ) :  (
                     // Show notifications and cart icons when NOT profile and NOT orders
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginRight: 20, width: width * 0.15, padding: 2, borderRadius: 10 }}>
                         <TouchableOpacity onPress={() => router.push('/Notifications')}>
@@ -73,7 +73,6 @@ const HomeHeader = ({ title, placeholder, orders, profile }) => {
                 />
             )}
 
-            {orders && !profile && <OrderTabs />}
         </View>
     );
 };
