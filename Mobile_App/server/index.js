@@ -14,6 +14,7 @@ import productRoutes from './routes/productRoutes.js';
 import bidRoutes from './routes/bidRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import kycRoutes from './routes/kycRoutes.js';
+import recommendationRoutes from './routes/recommendationRoutes.js';
 // import groupRoutes from './routes/groupRoutes.js';
 // import errorHandler from './middleware/errorHandler.js';
 // import initSocket from './utils/socket.js';
@@ -54,6 +55,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/bids', bidRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/kyc', kycRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 // app.use('/api/groups', groupRoutes);
 
 // ✅ Error handling middleware (optional)

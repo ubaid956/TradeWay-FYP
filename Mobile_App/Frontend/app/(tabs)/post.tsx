@@ -8,6 +8,7 @@ import { fetchSellerProducts } from '../store/slices/productSlice';
 import HomeHeader from '../Components/HomePage/HomeHeader'
 import SearchBar from 'react-native-dynamic-search-bar';
 import { router, useFocusEffect } from 'expo-router';
+import Tracking from '../Driver/Tracking';
 
 const { height, width } = Dimensions.get('window');
 const sortOptions = [
@@ -20,7 +21,7 @@ const sortOptions = [
 const Post = () => {
   const dispatch = useAppDispatch();
   const { userProducts, isLoading, error, pagination } = useAppSelector(state => state.product);
-  const { token, isAuthenticated } = useAppSelector(state => state.auth);
+  const { token, isAuthenticated, user } = useAppSelector(state => state.auth);
 
   const [selectedOption, setSelectedOption] = useState('Most Recent');
   const [isDropdownVisible, setDropdownVisible] = useState(false);
@@ -30,6 +31,11 @@ const Post = () => {
       dispatch(fetchSellerProducts());
     }
   }, [dispatch, token, isAuthenticated]);
+
+  // If the signed-in user is a driver, redirect Post tab to driver Tracking
+  useEffect(() => {
+    // if driver, we'll render driver Tracking UI inline (handled in render)
+  }, [user]);
 
   // Refresh products when screen comes into focus (e.g., when returning from CreatePost)
   useFocusEffect(
@@ -45,6 +51,10 @@ const Post = () => {
     setDropdownVisible(false);
     // Trigger sorting logic here (e.g., API fetch or list sort)
   };
+  // If the signed-in user is a driver, render the driver Tracking UI instead of the Post UI
+  if ((user?.role || '').toLowerCase() === 'driver') {
+    return <Tracking />;
+  }
   return (
     <View style={styles.mainContainer}>
       <HomeHeader title="My Products" profile />

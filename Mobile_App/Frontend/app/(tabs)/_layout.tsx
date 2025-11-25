@@ -11,7 +11,9 @@ const { height, width } = Dimensions.get("window");
 
 export default function TabLayout() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+  const { isAuthenticated, isLoading, user } = useAppSelector(state => state.auth);
+  const role = (user?.role || '').toLowerCase();
+  const isDriver = role === 'driver';
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -22,6 +24,11 @@ export default function TabLayout() {
 
   // Don't render tabs if not authenticated
   if (!isAuthenticated) {
+    return null;
+  }
+
+  // Wait until auth is fully loaded so we can correctly render role-specific tabs
+  if (isLoading) {
     return null;
   }
 
@@ -50,76 +57,106 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Always render exactly five tabs. For drivers, point them to /Driver/* pages via href and change labels/icons. */}
       <Tabs.Screen
         name="index"
         options={{
-          tabBarLabel: "Home",
+          tabBarLabel: isDriver ? 'Jobs' : 'Home',
           tabBarIcon: ({ focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={24}
-              color={focused ? "#0758C2" : "#a0a0a0"}
-            />
+            isDriver ? (
+              <MaterialCommunityIcons
+                name={focused ? 'briefcase' : 'briefcase-outline'}
+                size={22}
+                color={focused ? '#0758C2' : '#a0a0a0'}
+              />
+            ) : (
+              <Ionicons
+                name={focused ? 'home' : 'home-outline'}
+                size={24}
+                color={focused ? '#0758C2' : '#a0a0a0'}
+              />
+            )
           ),
         }}
+        {...(isDriver ? { href: '/Driver/Jobs' } : {})}
       />
 
       <Tabs.Screen
         name="order"
         options={{
-          tabBarLabel: "Orders",
+          tabBarLabel: isDriver ? 'Assignments' : 'Orders',
           tabBarIcon: ({ focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? "truck" : "truck-outline"}
-              size={24}
-              color={focused ? "#0758C2" : "#a0a0a0"}
-            />
+            isDriver ? (
+              <MaterialCommunityIcons
+                name={focused ? 'truck-delivery' : 'truck'}
+                size={22}
+                color={focused ? '#0758C2' : '#a0a0a0'}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name={focused ? 'truck' : 'truck-outline'}
+                size={24}
+                color={focused ? '#0758C2' : '#a0a0a0'}
+              />
+            )
           ),
         }}
+        {...(isDriver ? { href: '/Driver/Assignments' } : {})}
       />
 
       <Tabs.Screen
         name="post"
         options={{
-          tabBarLabel: "Post",
+          tabBarLabel: isDriver ? 'Tracking' : 'Post',
           tabBarIcon: ({ focused }) => (
-            <View style={styles.postIconContainer}>
-              <MaterialCommunityIcons
-                name="format-list-bulleted-square"
+            isDriver ? (
+              <Ionicons
+                name={focused ? 'navigate' : 'navigate-outline'}
                 size={22}
-                color="#ffffff"
+                color={focused ? '#0758C2' : '#a0a0a0'}
               />
-            </View>
+            ) : (
+              <View style={styles.postIconContainer}>
+                <MaterialCommunityIcons
+                  name="format-list-bulleted-square"
+                  size={22}
+                  color="#ffffff"
+                />
+              </View>
+            )
           ),
         }}
+        {...(isDriver ? { href: '/Driver/Tracking' } : {})}
       />
 
       <Tabs.Screen
         name="messages"
         options={{
-          tabBarLabel: "Messages",
+          tabBarLabel: 'Messages',
           tabBarIcon: ({ focused }) => (
             <Ionicons
-              name={focused ? "chatbubble" : "chatbubble-outline"}
+              name={focused ? 'chatbubble' : 'chatbubble-outline'}
               size={24}
-              color={focused ? "#0758C2" : "#a0a0a0"}
+              color={focused ? '#0758C2' : '#a0a0a0'}
             />
           ),
         }}
+        {...(isDriver ? { href: '/Driver/Messages' } : {})}
       />
 
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarLabel: "Profile",
+          tabBarLabel: 'Profile',
           tabBarIcon: ({ focused }) => (
             <FontAwesome5
-              name={focused ? "user-alt" : "user"}
+              name={focused ? 'user-alt' : 'user'}
               size={20}
-              color={focused ? "#0758C2" : "#a0a0a0"}
+              color={focused ? '#0758C2' : '#a0a0a0'}
             />
           ),
         }}
+        {...(isDriver ? { href: '/Driver/Profile' } : {})}
       />
     </Tabs>
   );

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAppSelector } from '../store/hooks';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -47,6 +48,8 @@ const Messages = () => {
 
     fetchUsers();
   }, []);
+
+  // messages list is the same for all roles; no role-based redirect here
 
   const handleMessagePress = (user) => {
     if (!user?._id) {

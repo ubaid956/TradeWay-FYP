@@ -133,6 +133,11 @@ export const API_ENDPOINTS = {
         STATS: '/bids/stats',
     },
 
+    // Recommendations
+    RECOMMENDATIONS: {
+        USER: '/recommendations',
+    },
+
     // KYC
     KYC: {
         SUBMIT: '/kyc/submit',

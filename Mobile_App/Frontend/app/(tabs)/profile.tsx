@@ -40,6 +40,8 @@ const Profile = () => {
 
   const { user: reduxUser, token, isAuthenticated } = useAppSelector(state => state.auth);
 
+  // Keep Profile UI consistent for all roles here; driver-specific UI is handled under /Driver/Profile
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
