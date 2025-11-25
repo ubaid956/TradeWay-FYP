@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { useEffect, useState } from "react";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -10,11 +11,28 @@ import IndustryUpdates from "./pages/IndustryUpdates";
 import Login from "./pages/Login";
 
 export default function App() {
+	const [theme, setTheme] = useState(() =>
+		localStorage.getItem("tw-theme") === "light" ? "light" : "dark"
+	);
+
+	useEffect(() => {
+		document.documentElement.setAttribute("data-theme", theme);
+		localStorage.setItem("tw-theme", theme);
+	}, [theme]);
+
+	const toggleTheme = () =>
+		setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+
 	return (
 		<Routes>
 			<Route
 				path="/login"
-				element={<Login />}
+				element={
+					<Login
+						theme={theme}
+						onToggleTheme={toggleTheme}
+					/>
+				}
 			/>
 			<Route
 				path="/*"
@@ -23,7 +41,10 @@ export default function App() {
 						<div className="container">
 							<Sidebar />
 							<div>
-								<Navbar />
+								<Navbar
+									theme={theme}
+									onToggleTheme={toggleTheme}
+								/>
 								<div className="content">
 									<Routes>
 										<Route

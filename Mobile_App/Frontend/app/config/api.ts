@@ -138,6 +138,11 @@ export const API_ENDPOINTS = {
         USER: '/recommendations',
     },
 
+    // AI Grading
+    GRADING: {
+        MARBLE: '/grading/marble',
+    },
+
     // KYC
     KYC: {
         SUBMIT: '/kyc/submit',

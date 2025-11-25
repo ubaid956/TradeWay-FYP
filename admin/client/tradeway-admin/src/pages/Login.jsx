@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function Login() {
+export default function Login({ theme = "dark", onToggleTheme }) {
 	const { login } = useAuth();
 	const nav = useNavigate();
 	const [email, setEmail] = useState("admin@tradeway.com");
@@ -26,8 +26,17 @@ export default function Login() {
 				className="card"
 				style={{ width: 360 }}
 			>
-				<h2>Admin Login</h2>
-				<p className="small">Use seeded credentials.</p>
+				<h2 style={{ textAlign: "center" }}>Admin Login</h2>
+				{onToggleTheme ? (
+					<button
+						className="btn ghost"
+						onClick={onToggleTheme}
+						style={{ width: "100%", marginBottom: 12 }}
+					>
+						{theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+					</button>
+				) : null}
+
 				{err ? <p style={{ color: "#ff8b8b" }}>{err}</p> : null}
 				<form onSubmit={onSubmit}>
 					<div className="form-row">

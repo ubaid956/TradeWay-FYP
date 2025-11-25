@@ -14,7 +14,7 @@ export default function IndustryUpdates() {
 		published: true,
 		publishedAt: "",
 	});
-	const canPost = ["admin", "analyst"].includes(user?.role);
+	const canPost = user?.role === "admin";
 
 	async function load() {
 		const { data } = await api.get("/api/industry/updates");

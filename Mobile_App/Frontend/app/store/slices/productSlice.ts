@@ -31,6 +31,20 @@ export interface Product {
     createdAt: string;
     updatedAt: string;
     __v: number;
+    grading?: {
+        status: string;
+        grade?: string;
+        confidence?: number;
+        summary?: string;
+        issues?: {
+            label: string;
+            severity?: string;
+            details?: string;
+        }[];
+        recommendations?: string[];
+        completedAt?: string;
+        requestedAt?: string;
+    };
 }
 
 interface ProductState {
