@@ -56,6 +56,66 @@ export interface DriverKycPayload {
     truckPhoto?: string;
 }
 
+export interface RequirementQuantity {
+    amount: number;
+    unit: string;
+}
+
+export interface RequirementLocation {
+    city: string;
+    address?: string;
+}
+
+export interface RequirementBudget {
+    amount: number;
+    currency: string;
+}
+
+export interface Requirement {
+    _id: string;
+    title: string;
+    productType: string;
+    gradePreference?: string;
+    quantity: RequirementQuantity;
+    location: RequirementLocation;
+    budget: RequirementBudget;
+    description?: string;
+    needByDate?: string;
+    contactPreference?: 'chat' | 'phone' | 'email' | 'any';
+    status: 'open' | 'in_progress' | 'fulfilled' | 'cancelled' | 'expired';
+    tags?: string[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RequirementPayload {
+    title: string;
+    productType: string;
+    gradePreference?: string;
+    quantityAmount: number;
+    quantityUnit?: string;
+    locationCity: string;
+    locationAddress?: string;
+    budgetAmount: number;
+    budgetCurrency?: string;
+    description?: string;
+    needByDate?: string;
+    contactPreference?: 'chat' | 'phone' | 'email' | 'any';
+    tags?: string[] | string;
+}
+
+export interface RequirementFilters {
+    status?: string;
+    productType?: string;
+    city?: string;
+    search?: string;
+    minBudget?: number;
+    maxBudget?: number;
+    page?: number;
+    limit?: number;
+    sort?: string;
+}
+
 // Generic API request function
 const apiRequest = async <T = any>(
     endpoint: string,
@@ -115,24 +175,6 @@ const authenticatedRequest = async <T = any>(
         const url = buildApiUrl(endpoint);
         const headers = getAuthHeaders(authToken!);
 
-        // Decode JWT token to see its contents
-        try {
-            const tokenParts = authToken.split('.');
-            if (tokenParts.length === 3) {
-                const payload = JSON.parse(atob(tokenParts[1]));
-                console.log('JWT Token payload:', payload);
-            }
-        } catch {
-            console.log('Could not decode JWT token');
-        }
-
-        console.log('Authenticated Request:', {
-            url,
-            method: options.method || 'GET',
-            hasToken: !!authToken,
-            tokenPreview: authToken.substring(0, 20) + '...'
-        });
-
         const defaultOptions: RequestInit = {
             method: 'GET',
             headers,
@@ -166,9 +208,6 @@ const authenticatedRequest = async <T = any>(
 export const authApi = {
     // Login user
     login: async (credentials: LoginRequest): Promise<ApiResponse<any>> => {
-        console.log('API Service: Making login request to:', buildApiUrl(API_ENDPOINTS.AUTH.LOGIN));
-        console.log('API Service: Login credentials:', credentials);
-
         try {
             const url = buildApiUrl(API_ENDPOINTS.AUTH.LOGIN);
             const response = await fetch(url, {
@@ -177,24 +216,34 @@ export const authApi = {
                 body: JSON.stringify(credentials),
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            const bodyText = await response.text();
+            let parsedBody: any = null;
+            try {
+                parsedBody = bodyText ? JSON.parse(bodyText) : null;
+            } catch (parseError) {
+                console.warn('API Service: Failed to parse login response JSON. Raw body preserved.');
             }
 
-            const data = await response.json();
-            console.log('API Service: Login response:', data);
+            if (!response.ok) {
+                const errorMessage = parsedBody?.message || bodyText || `HTTP ${response.status}: ${response.statusText}`;
+                return {
+                    success: false,
+                    data: null,
+                    error: errorMessage,
+                };
+            }
 
+            console.log('API Service: Login response:', parsedBody);
             return {
                 success: true,
-                data: data,
+                data: parsedBody,
             };
         } catch (error: any) {
-            console.error('API Request Error:', error);
+            console.warn('API Service: Network/Unexpected login error:', error?.message || error);
             return {
                 success: false,
                 data: null,
-                error: error.message || 'An unexpected error occurred',
+                error: error?.message || 'An unexpected error occurred',
             };
         }
     },
@@ -464,6 +513,14 @@ export const productsApi = {
         });
     },
 
+    getCategories: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>(API_ENDPOINTS.PRODUCTS.CATEGORIES);
+    },
+
+    getTaxonomy: async (): Promise<ApiResponse<any>> => {
+        return apiRequest<any>(API_ENDPOINTS.PRODUCTS.TAXONOMY);
+    },
+
     // Delete product
     deleteProduct: async (productId: string): Promise<ApiResponse<void>> => {
         return authenticatedRequest<void>(`${API_ENDPOINTS.PRODUCTS.DELETE}/${productId}`, {
@@ -623,9 +680,66 @@ export const bidsApi = {
             method: 'PATCH',
         });
     },
+    // Update a pending bid
+    updateBid: async (
+        bidId: string,
+        payload: { bidAmount?: number; quantity?: number; message?: string }
+    ): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.UPDATE}/${bidId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+    },
     // Get bid statistics
     getBidStats: async (): Promise<ApiResponse<any>> => {
         return authenticatedRequest<any>(API_ENDPOINTS.BIDS.STATS);
+    },
+};
+
+export const requirementsApi = {
+    getRequirements: async (filters: RequirementFilters = {}): Promise<ApiResponse<any>> => {
+        const query = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') {
+                return;
+            }
+            query.append(key, value.toString());
+        });
+
+        const queryString = query.toString();
+        const endpoint = queryString
+            ? `${API_ENDPOINTS.REQUIREMENTS.LIST}?${queryString}`
+            : API_ENDPOINTS.REQUIREMENTS.LIST;
+
+        return authenticatedRequest<any>(endpoint);
+    },
+
+    getMyRequirements: async (status?: string): Promise<ApiResponse<any>> => {
+        const query = status ? `?status=${status}` : '';
+        return authenticatedRequest<any>(`${API_ENDPOINTS.REQUIREMENTS.BY_USER}${query}`);
+    },
+
+    createRequirement: async (payload: RequirementPayload): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(API_ENDPOINTS.REQUIREMENTS.CREATE, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+
+    updateRequirement: async (
+        requirementId: string,
+        payload: Partial<RequirementPayload> & { status?: Requirement['status'] }
+    ): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.REQUIREMENTS.UPDATE}/${requirementId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+    },
+
+    deleteRequirement: async (requirementId: string): Promise<ApiResponse<void>> => {
+        return authenticatedRequest<void>(`${API_ENDPOINTS.REQUIREMENTS.DELETE}/${requirementId}`, {
+            method: 'DELETE',
+        });
     },
 };
 
@@ -664,6 +778,13 @@ export interface RecommendationItem {
         location: string;
         freshnessScore: number;
         isSold: boolean;
+        description?: string;
+        images?: string[];
+        quantity?: number;
+        availability?: {
+            availableQuantity?: number;
+            minimumOrder?: number;
+        };
     };
 }
 
@@ -714,6 +835,7 @@ export const apiService = {
     bids: bidsApi,
     orders: ordersApi,
     recommendations: recommendationsApi,
+    requirements: requirementsApi,
     grading: gradingApi,
 };
 

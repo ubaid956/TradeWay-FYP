@@ -92,7 +92,7 @@ const initialState: ProductState = {
 // Async thunks for product operations
 export const fetchProducts = createAsyncThunk(
     'product/fetchProducts',
-    async (filters: any = {}, { rejectWithValue }) => {
+    async (filters: Record<string, any> = {}, { rejectWithValue }) => {
         try {
             const response = await apiService.products.getProducts(filters);
 

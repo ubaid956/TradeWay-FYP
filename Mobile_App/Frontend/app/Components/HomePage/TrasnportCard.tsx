@@ -2,6 +2,7 @@ import { globalStyles } from '@/Styles/globalStyles'
 import React from 'react'
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native'
 import CustomButton from '../CustomButton'
+import { formatCurrency } from '../../utils/currency'
 
 const { width, height } = Dimensions.get('window')
 const TrasnportCard = ({ companyName, pricePerKm, location, rating, availability, image, specilization }) => {
@@ -20,7 +21,7 @@ const TrasnportCard = ({ companyName, pricePerKm, location, rating, availability
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
 
 
-          <Text style={{ fontSize: 14, color: '#555', marginRight: width*0.05 }}> ${pricePerKm}</Text>
+          <Text style={{ fontSize: 14, color: '#555', marginRight: width*0.05 }}> {formatCurrency(pricePerKm, { fractionDigits: 0 })}/km</Text>
           <Text style={{ fontSize: 14, color: '#555' ,marginRight: width*0.05}}>{location}</Text>
           <CustomButton extraSmall title="Request Quote" onPress={() => console.log("Request Quote")} />
         </View>

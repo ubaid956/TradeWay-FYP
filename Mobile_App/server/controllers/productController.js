@@ -1,6 +1,78 @@
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import cloudinary from '../cloudinaryConfig.js';
+import taxonomy, { PRODUCT_CATEGORIES, PRODUCT_GRADE_VALUES } from '../../shared/taxonomy.js';
+
+const parseJsonField = (value, fallback) => {
+    if (value === undefined || value === null) {
+        return fallback;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed.length) {
+            return fallback;
+        }
+        try {
+            return JSON.parse(trimmed);
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    return value;
+};
+
+const normalizeStringArray = (value) => {
+    if (Array.isArray(value)) {
+        return value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter(Boolean);
+    }
+
+    if (typeof value === 'string' && value.trim().length) {
+        try {
+            const parsed = JSON.parse(value.trim());
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => (typeof item === 'string' ? item.trim() : item)).filter(Boolean);
+            }
+        } catch (error) {
+            // ignore parse error, fallback to comma-split
+        }
+        return value
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    return [];
+};
+
+const ensurePlainObject = (value, fallback = {}) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value;
+    }
+    return fallback;
+};
+
+const normalizeGradeLabel = (grade) => (typeof grade === 'string' ? grade.trim().toLowerCase() : '');
+
+const sanitizeSpecificationGrade = (specifications) => {
+    if (!specifications || typeof specifications !== 'object') {
+        return specifications;
+    }
+
+    if (!('grade' in specifications)) {
+        return specifications;
+    }
+
+    const normalizedGrade = normalizeGradeLabel(specifications.grade);
+    if (normalizedGrade && PRODUCT_GRADE_VALUES.includes(normalizedGrade)) {
+        specifications.grade = normalizedGrade;
+    } else {
+        delete specifications.grade;
+    }
+
+    return specifications;
+};
 
 // Create a new product (vendor posting)
 export const createProduct = async (req, res) => {
@@ -17,16 +89,46 @@ export const createProduct = async (req, res) => {
             coordinates,
             specifications,
             availability,
-            shipping
+            shipping,
+            images: bodyImages
         } = req.body;
 
         // Validate required fields
         if (!title || !description || !category || !price || !quantity || !location) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields: title, description, type, category, price, quantity, location'
+                message: 'Missing required fields: title, description, category, price, quantity, location'
             });
         }
+
+        const numericPrice = Number(price);
+        const numericQuantity = Number(quantity);
+
+        if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Price must be a positive number'
+            });
+        }
+
+        if (!Number.isInteger(numericQuantity) || numericQuantity <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Quantity must be a positive integer'
+            });
+        }
+
+        const normalizedSpecifications = sanitizeSpecificationGrade(
+            ensurePlainObject(parseJsonField(specifications, specifications), {})
+        );
+        const normalizedAvailability = ensurePlainObject(parseJsonField(availability, availability), {});
+        const normalizedShipping = ensurePlainObject(parseJsonField(shipping, shipping), {});
+        const normalizedCoordinates = ensurePlainObject(parseJsonField(coordinates, coordinates), {});
+        const normalizedTags = normalizeStringArray(parseJsonField(tags, tags));
+        const normalizedBodyImagesSource = parseJsonField(bodyImages, bodyImages);
+        const normalizedBodyImages = Array.isArray(normalizedBodyImagesSource)
+            ? normalizedBodyImagesSource
+            : normalizeStringArray(normalizedBodyImagesSource);
 
         // Get seller from authenticated user
         const seller = req.user.id;
@@ -79,30 +181,35 @@ export const createProduct = async (req, res) => {
             }
         }
 
+        if (!images.length && normalizedBodyImages.length) {
+            images = normalizedBodyImages;
+        }
+
         // Create new product
         const product = new Product({
             seller,
             title,
             description,
             category,
-            tags: tags || [],
-            price,
-            quantity,
+            tags: normalizedTags,
+            price: numericPrice,
+            quantity: numericQuantity,
             unit: unit || 'pieces',
             images,
             location,
-            coordinates: coordinates || {},
-            specifications: specifications || {},
+            coordinates: normalizedCoordinates,
+            specifications: normalizedSpecifications,
             availability: {
                 isAvailable: true,
-                availableQuantity: quantity,
-                minimumOrder: availability?.minimumOrder || 1,
-                ...availability
+                availableQuantity: numericQuantity,
+                minimumOrder: 1,
+                ...normalizedAvailability
             },
-            shipping: shipping || {
+            shipping: {
                 isShippingAvailable: false,
                 shippingCost: 0,
-                estimatedDelivery: 0
+                estimatedDelivery: 0,
+                ...normalizedShipping
             }
         });
 
@@ -134,7 +241,6 @@ export const getProducts = async (req, res) => {
             page = 1,
             limit = 10,
             category,
-            type,
             minPrice,
             maxPrice,
             location,
@@ -147,7 +253,6 @@ export const getProducts = async (req, res) => {
         const filter = { isActive: true, isSold: false };
 
         if (category) filter.category = category;
-        if (type) filter.type = type;
         if (minPrice || maxPrice) {
             filter.price = {};
             if (minPrice) filter.price.$gte = parseFloat(minPrice);
@@ -471,11 +576,13 @@ export const markProductAsSold = async (req, res) => {
 // Get product categories
 export const getCategories = async (req, res) => {
     try {
-        const categories = await Product.distinct('category', { isActive: true });
-
         res.json({
             success: true,
-            data: categories
+            data: PRODUCT_CATEGORIES,
+            meta: {
+                source: 'shared-taxonomy',
+                version: taxonomy.version
+            }
         });
 
     } catch (error) {
@@ -483,6 +590,22 @@ export const getCategories = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching categories',
+            error: error.message
+        });
+    }
+};
+
+export const getProductTaxonomy = async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: taxonomy
+        });
+    } catch (error) {
+        console.error('Get product taxonomy error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching product taxonomy',
             error: error.message
         });
     }

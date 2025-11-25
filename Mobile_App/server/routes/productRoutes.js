@@ -8,7 +8,8 @@ import {
     deleteProduct,
     markProductAsSold,
     getCategories,
-    getProductStats
+    getProductStats,
+    getProductTaxonomy
 } from '../controllers/productController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -17,6 +18,7 @@ const router = express.Router();
 // Public routes
 router.get('/', getProducts); // Get all products with filtering
 router.get('/categories', getCategories); // Get product categories
+router.get('/taxonomy', getProductTaxonomy); // Get entire taxonomy payload
 router.get('/:id', getProductById); // Get single product by ID
 
 // Protected routes (require authentication)

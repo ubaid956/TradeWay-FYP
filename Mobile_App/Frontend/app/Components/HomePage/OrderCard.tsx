@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Dimensions,
     Image,
@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { formatCurrency } from '../../utils/currency';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +24,9 @@ const OrderCard = (props) => {
     productImage,
     onPressViewDetails,
   } = props;
+
+  const formattedUnitPrice = useMemo(() => formatCurrency(unitPrice, { fractionDigits: 2 }), [unitPrice]);
+  const formattedTotal = useMemo(() => formatCurrency(total, { fractionDigits: 2 }), [total]);
 
   return (
     <View style={styles.card}>
@@ -41,7 +45,7 @@ const OrderCard = (props) => {
           <Text style={styles.productName}>{productName}</Text>
           <Text style={styles.quantity}>Qty: {quantity}</Text>
         </View>
-        <Text style={styles.price}>${unitPrice.toFixed(2)} per unit</Text>
+        <Text style={styles.price}>{formattedUnitPrice} per unit</Text>
       </View>
 
       <View style={styles.progressLabels}>
@@ -55,7 +59,7 @@ const OrderCard = (props) => {
 
       <View style={styles.footer}>
         <Text style={styles.total}>
-          Total: <Text style={styles.totalAmount}>${total.toFixed(2)}</Text>
+          Total: <Text style={styles.totalAmount}>{formattedTotal}</Text>
         </Text>
         <TouchableOpacity style={styles.button} onPress={onPressViewDetails}>
           <Text style={styles.buttonText}>View Details</Text>

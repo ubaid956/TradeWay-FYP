@@ -18,6 +18,7 @@ import CustomButton from '../Components/CustomButton';
 import CustomHeader from '../Components/Headers/CustomHeader';
 import { productsApi } from '../services/apiService';
 import { useAppSelector } from '../store/hooks';
+import { formatCurrency } from '../utils/currency';
 
 const { width, height } = Dimensions.get('window');
 
@@ -164,10 +165,7 @@ const ViewProduct = () => {
 
 
     const formatPrice = (price) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(price);
+        return formatCurrency(price, { fractionDigits: 0 });
     };
 
     const formatDate = (dateString) => {
@@ -178,7 +176,8 @@ const ViewProduct = () => {
         });
     };
 
-    const currentGradeSwatch = getGradeSwatch(product?.grading?.grade);
+    const resolvedGrade = product?.specifications?.grade ?? product?.grading?.grade ?? null;
+    const currentGradeSwatch = getGradeSwatch(resolvedGrade ?? undefined);
 
     if (loading) {
         return (
@@ -323,15 +322,15 @@ const ViewProduct = () => {
 
                     <Text style={styles.title}>{product.title || 'Untitled Product'}</Text>
 
-                    {product.grading && (
+                    {(resolvedGrade || product?.grading) && (
                         <View style={[styles.gradeBadge, {
                             backgroundColor: currentGradeSwatch.bg,
                             borderColor: currentGradeSwatch.text,
                         }]}> 
                             <Text style={[styles.gradeBadgeText, { color: currentGradeSwatch.text }]}>
-                                {(product.grading.grade || 'Pending').toUpperCase()}
+                                {(resolvedGrade || 'Pending').toUpperCase()}
                             </Text>
-                            {typeof product.grading.confidence === 'number' && (
+                            {typeof product?.grading?.confidence === 'number' && (
                                 <Text style={[styles.gradeConfidence, { color: currentGradeSwatch.text }]}>
                                     {Math.round(product.grading.confidence * 100)}% confidence
                                 </Text>
@@ -368,7 +367,7 @@ const ViewProduct = () => {
                             <View style={styles.gradingCard}>
                                 <View style={styles.gradingHeader}>
                                     <Text style={[styles.gradeValue, { color: currentGradeSwatch.text }]}>
-                                        {(product.grading.grade || 'Pending').toUpperCase()}
+                                        {(resolvedGrade || 'Pending').toUpperCase()}
                                     </Text>
                                     <View style={styles.gradeStatusPill}>
                                         <Text style={styles.gradeStatusText}>{formatGradingStatus(product.grading.status)}</Text>

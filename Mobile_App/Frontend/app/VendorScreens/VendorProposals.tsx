@@ -18,6 +18,7 @@ import { apiService } from '../services/apiService';
 import CustomHeader from '../Components/Profile_Components/CustomHeader';
 import CustomButton from '../Components/CustomButton';
 import { globalStyles } from '@/Styles/globalStyles';
+import { formatCurrency } from '../utils/currency';
 
 const { width, height } = Dimensions.get('window');
 
@@ -98,7 +99,7 @@ const VendorProposals = () => {
     const handleAccept = async (proposal: Proposal) => {
         Alert.alert(
             'Accept Proposal',
-            `Accept ${proposal.bidder.name}'s proposal of $${proposal.bidAmount} for ${proposal.quantity} units? This will create an order automatically.`,
+            `Accept ${proposal.bidder.name}'s proposal of ${formatCurrency(proposal.bidAmount, { fractionDigits: 0 })} for ${proposal.quantity} units? This will create an order automatically.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -172,12 +173,7 @@ const VendorProposals = () => {
         });
     };
 
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(price);
-    };
+    const formatPrice = (price: number) => formatCurrency(price, { fractionDigits: 0 });
 
     const filteredProposals = proposals.filter(p => filter === 'all' || p.status === filter);
 

@@ -2,13 +2,18 @@ import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import Bid from '../models/Bid.js';
 import { generateAIRecommendations } from '../services/aiRecommendationService.js';
+import {
+  PRODUCT_CATEGORY_VALUES
+} from '../../shared/taxonomy.js';
+
+const FALLBACK_CATEGORY_PREFERENCES = PRODUCT_CATEGORY_VALUES.length ? PRODUCT_CATEGORY_VALUES : ['marble'];
 
 const buildUserProfile = async (userId) => {
   if (!userId) {
     return {
       userId: 'guest',
       role: 'buyer',
-      favoriteCategories: ['marble'],
+      favoriteCategories: [...FALLBACK_CATEGORY_PREFERENCES],
       averageBudget: 0,
       recentActions: [],
     };
@@ -65,7 +70,7 @@ const buildUserProfile = async (userId) => {
   return {
     userId: userId.toString(),
     role: 'buyer',
-    favoriteCategories: favoriteCategories.length ? favoriteCategories : ['marble'],
+    favoriteCategories: favoriteCategories.length ? favoriteCategories : [...FALLBACK_CATEGORY_PREFERENCES],
     averageBudget,
     recentActions,
   };
@@ -73,7 +78,7 @@ const buildUserProfile = async (userId) => {
 
 const buildCandidateProducts = async () => {
   const products = await Product.find({
-    category: { $in: ['marble', 'granite', 'limestone', 'onyx', 'travertine'] },
+    category: { $in: PRODUCT_CATEGORY_VALUES },
     isActive: true,
   })
     .populate('seller', 'name')
