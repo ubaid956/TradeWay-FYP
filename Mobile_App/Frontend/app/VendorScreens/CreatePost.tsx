@@ -344,6 +344,7 @@ const CreatePost = () => {
                 let gradeSummary = '';
                 let gradeLabel = '';
                 let gradingFailed = false;
+                let gradeRejected = false;
 
                 if (createdProduct?._id && createdProduct.images?.length) {
                     try {
@@ -354,15 +355,37 @@ const CreatePost = () => {
                         });
 
                         const gradeData = gradeResponse.data?.data || gradeResponse.data;
+                        const normalizedGrade = (gradeData?.grade || '').toLowerCase();
                         gradeSummary = gradeData?.summary || '';
                         gradeLabel = gradeData?.grade || '';
-                        setGradingStatus('success');
+
+                        if (normalizedGrade === 'reject') {
+                            gradeRejected = true;
+                            setGradingStatus('error');
+                        } else {
+                            setGradingStatus('success');
+                        }
                     } catch (gradingErr: any) {
                         console.error('Product grading error:', gradingErr);
                         gradingFailed = true;
                         setGradingStatus('error');
                         setGradingError(gradingErr.message || 'Unable to grade product automatically.');
                     }
+                }
+
+                if (gradeRejected && createdProduct?._id) {
+                    try {
+                        await apiService.products.deleteProduct(createdProduct._id);
+                    } catch (deleteErr) {
+                        console.error('Failed to remove rejected product:', deleteErr);
+                    }
+
+                    Alert.alert(
+                        'Images not accepted',
+                        'Our AI could not detect a marble product in the uploaded photos. Please upload clear marble slab images and try again.'
+                    );
+
+                    return;
                 }
 
                 // Refresh the seller products list

@@ -395,13 +395,13 @@ const ViewProduct = () => {
                                         ))}
                                     </View>
                                 )}
-                                {product.grading.recommendations && product.grading.recommendations.length > 0 && (
+                                {/* {product.grading.recommendations && product.grading.recommendations.length > 0 && (
                                     <View style={styles.recommendationList}>
                                         {product.grading.recommendations.map((rec, index) => (
                                             <Text key={`rec-${index}`} style={styles.recommendationItem}>• {rec}</Text>
                                         ))}
                                     </View>
-                                )}
+                                )} */}
                             </View>
                         </View>
                     )}

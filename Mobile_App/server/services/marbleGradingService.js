@@ -108,7 +108,8 @@ Product context (JSON): ${JSON.stringify({
   })}
 
 Instructions:
-- Review provided marble images for polish, veining consistency, edge defects, color matching, and visible cracks.
+- First verify that every frame clearly shows a marble/stone slab. If any image is not marble (e.g., people, tools, warehouses, landscapes), immediately mark the grade as "reject" and set summary to "Image does not appear to show a marble product" (or similar) while listing the mismatch inside issues.
+- When images do contain marble, review polish, veining consistency, edge defects, color matching, and visible cracks.
 - Reference obvious issues explicitly and keep responses factual.
 - Respond with a JSON object using this exact schema:
 {
