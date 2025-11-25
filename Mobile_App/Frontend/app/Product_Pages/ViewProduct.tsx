@@ -21,9 +21,42 @@ import { useAppSelector } from '../store/hooks';
 
 const { width, height } = Dimensions.get('window');
 
+const gradePalette: Record<string, { bg: string; text: string }> = {
+    premium: { bg: '#E8F5E9', text: '#1E8449' },
+    standard: { bg: '#E3F2FD', text: '#1565C0' },
+    commercial: { bg: '#FFF4E6', text: '#D35400' },
+    reject: { bg: '#FDEDEC', text: '#C0392B' },
+    default: { bg: '#EEF2FF', text: '#4A5568' },
+};
+
+const severityColors: Record<string, string> = {
+    low: '#2ECC71',
+    medium: '#F1C40F',
+    high: '#E67E22',
+    critical: '#C0392B',
+};
+
+const getGradeSwatch = (grade?: string) => {
+    const key = (grade || 'default').toLowerCase();
+    return gradePalette[key] || gradePalette.default;
+};
+
+const getSeverityColor = (severity?: string) => {
+    if (!severity) return '#95A5A6';
+    return severityColors[severity.toLowerCase()] || '#95A5A6';
+};
+
+const formatGradingStatus = (status?: string) => {
+    if (!status) return 'Pending';
+    return status
+        .split('_')
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
+};
+
 const ViewProduct = () => {
     const { productId } = useLocalSearchParams();
-    const [product, setProduct] = useState(null);
+    const [product, setProduct] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -144,6 +177,8 @@ const ViewProduct = () => {
             day: 'numeric'
         });
     };
+
+    const currentGradeSwatch = getGradeSwatch(product?.grading?.grade);
 
     if (loading) {
         return (
@@ -288,7 +323,21 @@ const ViewProduct = () => {
 
                     <Text style={styles.title}>{product.title || 'Untitled Product'}</Text>
 
-
+                    {product.grading && (
+                        <View style={[styles.gradeBadge, {
+                            backgroundColor: currentGradeSwatch.bg,
+                            borderColor: currentGradeSwatch.text,
+                        }]}> 
+                            <Text style={[styles.gradeBadgeText, { color: currentGradeSwatch.text }]}>
+                                {(product.grading.grade || 'Pending').toUpperCase()}
+                            </Text>
+                            {typeof product.grading.confidence === 'number' && (
+                                <Text style={[styles.gradeConfidence, { color: currentGradeSwatch.text }]}>
+                                    {Math.round(product.grading.confidence * 100)}% confidence
+                                </Text>
+                            )}
+                        </View>
+                    )}
 
                     {/* Location and Date */}
                     <View style={styles.locationDateRow}>
@@ -312,6 +361,50 @@ const ViewProduct = () => {
                             </View>
                         ))}
                     </View>
+
+                    {product.grading && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>AI Quality Grading</Text>
+                            <View style={styles.gradingCard}>
+                                <View style={styles.gradingHeader}>
+                                    <Text style={[styles.gradeValue, { color: currentGradeSwatch.text }]}>
+                                        {(product.grading.grade || 'Pending').toUpperCase()}
+                                    </Text>
+                                    <View style={styles.gradeStatusPill}>
+                                        <Text style={styles.gradeStatusText}>{formatGradingStatus(product.grading.status)}</Text>
+                                    </View>
+                                </View>
+                                {typeof product.grading.confidence === 'number' && (
+                                    <Text style={styles.confidenceText}>Confidence: {Math.round(product.grading.confidence * 100)}%</Text>
+                                )}
+                                {product.grading.summary && (
+                                    <Text style={styles.gradingSummary}>{product.grading.summary}</Text>
+                                )}
+                                {product.grading.issues && product.grading.issues.length > 0 && (
+                                    <View style={styles.issueList}>
+                                        {product.grading.issues.map((issue, index) => (
+                                            <View key={`${issue.label || 'issue'}-${index}`} style={styles.issueRow}>
+                                                <View style={[styles.issueMarker, { backgroundColor: getSeverityColor(issue.severity) }]} />
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.issueLabel}>{issue.label || 'Observation'}</Text>
+                                                    {issue.details ? (
+                                                        <Text style={styles.issueDetails}>{issue.details}</Text>
+                                                    ) : null}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                                {product.grading.recommendations && product.grading.recommendations.length > 0 && (
+                                    <View style={styles.recommendationList}>
+                                        {product.grading.recommendations.map((rec, index) => (
+                                            <Text key={`rec-${index}`} style={styles.recommendationItem}>• {rec}</Text>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    )}
 
                     {/* Description */}
                     <View style={styles.section}>
@@ -629,6 +722,23 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: 'bold',
     },
+    gradeBadge: {
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        marginBottom: 12,
+    },
+    gradeBadgeText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    gradeConfidence: {
+        fontSize: 12,
+        marginTop: 4,
+        fontWeight: '500',
+    },
     tagBadge: {
         backgroundColor: '#f0f0f0',
         paddingHorizontal: 12,
@@ -647,6 +757,79 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#333',
         marginBottom: 12,
+    },
+    gradingCard: {
+        backgroundColor: '#f8f9fb',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#e1e4ea',
+    },
+    gradingHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    gradeValue: {
+        fontSize: 24,
+        fontWeight: '700',
+    },
+    gradeStatusPill: {
+        backgroundColor: '#EAECEF',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 999,
+    },
+    gradeStatusText: {
+        fontSize: 12,
+        color: '#4A5568',
+        fontWeight: '600',
+    },
+    confidenceText: {
+        fontSize: 14,
+        color: '#4A4A4A',
+        marginBottom: 8,
+    },
+    gradingSummary: {
+        fontSize: 15,
+        color: '#2F3640',
+        lineHeight: 22,
+        marginBottom: 10,
+    },
+    issueList: {
+        marginBottom: 8,
+    },
+    issueRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: 8,
+    },
+    issueMarker: {
+        width: 6,
+        height: 18,
+        borderRadius: 3,
+        marginRight: 10,
+        marginTop: 4,
+    },
+    issueLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#2F3640',
+    },
+    issueDetails: {
+        fontSize: 13,
+        color: '#4D4D4D',
+        marginTop: 2,
+        lineHeight: 20,
+    },
+    recommendationList: {
+        marginTop: 6,
+    },
+    recommendationItem: {
+        fontSize: 13,
+        color: '#333',
+        marginBottom: 4,
     },
     descriptionContainer: {
         backgroundColor: '#f8f9fa',

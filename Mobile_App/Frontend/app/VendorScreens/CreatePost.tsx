@@ -28,6 +28,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import HomeHeader from '../Components/HomePage/HomeHeader'
 const { height, width } = Dimensions.get('window');
 
+type GradingState = 'idle' | 'pending' | 'success' | 'error';
+
 const CreatePost = () => {
     const dispatch = useAppDispatch();
     const { token, user } = useAppSelector(state => state.auth);
@@ -36,6 +38,8 @@ const CreatePost = () => {
     const [tagInput, setTagInput] = useState('');
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const [isSelectingImages, setIsSelectingImages] = useState(false);
+    const [gradingStatus, setGradingStatus] = useState<GradingState>('idle');
+    const [gradingError, setGradingError] = useState<string | null>(null);
 
     // Category options
     const categoryOptions = [
@@ -294,7 +298,14 @@ const CreatePost = () => {
                 return;
             }
 
+            if (selectedImages.length === 0) {
+                Alert.alert('Images required', 'Please upload at least one product image so we can grade it automatically.');
+                return;
+            }
+
             setIsLoading(true);
+            setGradingStatus('idle');
+            setGradingError(null);
 
             const payload = {
                 title: formData.title,
@@ -324,19 +335,44 @@ const CreatePost = () => {
             console.log('Selected images:', selectedImages);
 
             // Call the API to create the product with images
-            const response = selectedImages.length > 0
-                ? await apiService.products.createProductWithImages(payload, selectedImages)
-                : await apiService.products.createProduct(payload);
+            const response = await apiService.products.createProductWithImages(payload, selectedImages);
 
             if (response.success) {
                 console.log('Product created successfully:', response.data);
+
+                const createdProduct = response.data?.data || response.data;
+                let gradeSummary = '';
+                let gradeLabel = '';
+                let gradingFailed = false;
+
+                if (createdProduct?._id && createdProduct.images?.length) {
+                    try {
+                        setGradingStatus('pending');
+                        const gradeResponse = await apiService.grading.gradeProduct(createdProduct._id, {
+                            imageUrls: createdProduct.images,
+                            promptContext: `Auto grading during listing creation by ${user?.name || 'vendor'}`,
+                        });
+
+                        const gradeData = gradeResponse.data?.data || gradeResponse.data;
+                        gradeSummary = gradeData?.summary || '';
+                        gradeLabel = gradeData?.grade || '';
+                        setGradingStatus('success');
+                    } catch (gradingErr: any) {
+                        console.error('Product grading error:', gradingErr);
+                        gradingFailed = true;
+                        setGradingStatus('error');
+                        setGradingError(gradingErr.message || 'Unable to grade product automatically.');
+                    }
+                }
 
                 // Refresh the seller products list
                 dispatch(fetchSellerProducts());
 
                 Alert.alert(
-                    'Success',
-                    'Product created successfully! Your product is now live on TradeWay.',
+                    gradingFailed ? 'Product posted (grading pending)' : 'Product created and graded',
+                    gradingFailed
+                        ? 'Your listing is live but we could not finish AI grading automatically. Please retry from the dashboard.'
+                        : `Listing is live and graded${gradeLabel ? ` as ${gradeLabel.toUpperCase()}` : ''}.${gradeSummary ? `\n${gradeSummary}` : ''}`,
                     [
                         {
                             text: 'OK',
@@ -710,6 +746,51 @@ const CreatePost = () => {
                                     ))}
                                 </View>
                             </ScrollView>
+                        </View>
+                    )}
+
+                    {gradingStatus === 'pending' && (
+                        <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 12,
+                            backgroundColor: '#E8F1FF',
+                            padding: 10,
+                            borderRadius: 10,
+                            width: width * 0.9,
+                            alignSelf: 'center'
+                        }}>
+                            <ActivityIndicator size="small" color="#0758C2" style={{ marginRight: 10 }} />
+                            <Text style={{ color: '#0758C2', fontWeight: '600' }}>Running AI grading on your marble images...</Text>
+                        </View>
+                    )}
+
+                    {gradingStatus === 'error' && gradingError && (
+                        <View style={{
+                            marginBottom: 12,
+                            backgroundColor: '#FFEAEA',
+                            padding: 10,
+                            borderRadius: 10,
+                            width: width * 0.9,
+                            alignSelf: 'center'
+                        }}>
+                            <Text style={{ color: '#C0392B', fontWeight: '600' }}>AI grading failed</Text>
+                            <Text style={{ color: '#C0392B', marginTop: 4 }}>{gradingError}</Text>
+                        </View>
+                    )}
+
+                    {gradingStatus === 'success' && (
+                        <View style={{
+                            marginBottom: 12,
+                            backgroundColor: '#E7F8EF',
+                            padding: 10,
+                            borderRadius: 10,
+                            width: width * 0.9,
+                            alignSelf: 'center'
+                        }}>
+                            <Text style={{ color: '#1E8449', fontWeight: '600' }}>AI grading complete</Text>
+                            <Text style={{ color: '#1E8449', marginTop: 4 }}>Grade label has been attached to your listing.</Text>
                         </View>
                     )}
 

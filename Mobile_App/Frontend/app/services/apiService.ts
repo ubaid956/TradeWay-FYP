@@ -602,6 +602,30 @@ export const recommendationsApi = {
     },
 };
 
+export interface GradeProductOptions {
+    imageUrls?: string[];
+    promptContext?: string;
+}
+
+export const gradingApi = {
+    gradeProduct: async (productId: string, options: GradeProductOptions = {}): Promise<ApiResponse<any>> => {
+        const payload: Record<string, any> = { productId };
+
+        if (options.imageUrls && options.imageUrls.length) {
+            payload.imageUrls = options.imageUrls;
+        }
+
+        if (options.promptContext) {
+            payload.promptContext = options.promptContext;
+        }
+
+        return authenticatedRequest<any>(API_ENDPOINTS.GRADING.MARBLE, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+};
+
 // Export all API services
 export const apiService = {
     auth: authApi,
@@ -610,6 +634,7 @@ export const apiService = {
     messages: messagesApi,
     kyc: kycApi,
     recommendations: recommendationsApi,
+    grading: gradingApi,
 };
 
 // Export default API service
