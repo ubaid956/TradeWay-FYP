@@ -16,9 +16,9 @@ import CustomHeader from '@/app/Components/Profile_Components/CustomHeader';
 import { router, useLocalSearchParams } from 'expo-router';
 import CustomButton from '@/app/Components/CustomButton';
 import { globalStyles } from '@/Styles/globalStyles';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { updateUserProfile } from '../store/slices/authSlice';
-import { apiService } from '../services/apiService';
+import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
+import { updateUserProfile } from '@/src/store/slices/authSlice';
+import { apiService } from '@/src/services/apiService';
 
 const { width, height } = Dimensions.get('window');
 

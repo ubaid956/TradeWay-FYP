@@ -2,17 +2,17 @@ import { View, Text, Dimensions, TouchableOpacity, StyleSheet, ScrollView, Activ
 import React, { useState, useEffect, useMemo, ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import ProductCard from '../Components/HomePage/FeatureCard';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchSellerProducts, deleteProduct, Product } from '../store/slices/productSlice';
+import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
+import { fetchSellerProducts, deleteProduct, Product } from '@/src/store/slices/productSlice';
 import { Picker } from '@react-native-picker/picker';
 
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import SearchBar from 'react-native-dynamic-search-bar';
 import { router, useFocusEffect } from 'expo-router';
 import Tracking from '../Driver/Tracking';
-import { formatCurrency } from '../utils/currency';
-import { RequirementPayload, Requirement } from '../services/apiService';
-import { fetchMyRequirements, createRequirement, updateRequirement, deleteRequirement } from '../store/slices/requirementSlice';
+import { formatCurrency } from '@/src/utils/currency';
+import { RequirementPayload, Requirement } from '@/src/services/apiService';
+import { fetchMyRequirements, createRequirement, updateRequirement, deleteRequirement } from '@/src/store/slices/requirementSlice';
 
 const { height, width } = Dimensions.get('window');
 const sortOptions = [

@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { apiService } from '../services/apiService';
-import { fetchSellerProducts } from '../store/slices/productSlice';
+import { useAppSelector, useAppDispatch } from '@/src/store/hooks';
+import { apiService } from '@/src/services/apiService';
+import { fetchSellerProducts } from '@/src/store/slices/productSlice';
 import CustomButton from '@/app/Components/CustomButton';
 import { globalStyles } from '@/Styles/globalStyles';
 import { groupStyle } from '@/Styles/groupStyle';
@@ -24,7 +24,7 @@ import InputField from '../Components/InputFiled';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { Product as ProductType } from '../store/slices/productSlice';
+import { Product as ProductType } from '@/src/store/slices/productSlice';
 
 
 import HomeHeader from '../Components/HomePage/HomeHeader'

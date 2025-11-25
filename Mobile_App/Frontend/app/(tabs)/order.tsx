@@ -13,10 +13,12 @@ import {
 } from 'react-native';
 import SearchBar from 'react-native-dynamic-search-bar';
 import { router } from 'expo-router';
-import { useAppSelector } from '../store/hooks';
+// import { useAppSelector } from '../store/hooks';
+import { useAppSelector } from '@/src/store/hooks';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import OrderCard from '../Components/HomePage/OrderCard';
-import apiService from '../services/apiService';
+// import apiService from '../services/apiService';
+import apiService from '@/src/services/apiService';
 import Assignments from '../Driver/Assignments';
 import MyProposals from '../BuyerScreens/MyProposals';
 

@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
-import { useAppSelector } from './store/hooks';
+import { useAppSelector } from '@/src/store/hooks';
 
 export default function Index() {
   const router = useRouter();

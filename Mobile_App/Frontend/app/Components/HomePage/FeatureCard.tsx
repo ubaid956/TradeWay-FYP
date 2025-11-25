@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import CustomButton from '../CustomButton';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrency } from '@/src/utils/currency';
 
 const { width, height } = Dimensions.get('window');
 

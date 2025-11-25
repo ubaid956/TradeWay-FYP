@@ -22,8 +22,8 @@ import { useNavigation } from "@react-navigation/native";
 import { useRouter } from 'expo-router';
 
 // Redux imports
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { registerUser, clearError } from "../store/slices/authSlice";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { registerUser, clearError } from "@/src/store/slices/authSlice";
 
 const { height } = Dimensions.get("window");
 

@@ -5,12 +5,12 @@ enableScreens();
 
 import { Stack } from 'expo-router';
 import { Provider } from 'react-redux';
-import { store } from './store';
+import { store } from '@/src/store';
 import { useEffect, useState } from 'react';
-import { useAppDispatch } from './store/hooks';
-import { loadStoredAuth } from './store/slices/authSlice';
+import { useAppDispatch } from '@/src/store/hooks';
+import { loadStoredAuth } from '@/src/store/slices/authSlice';
 import { StripeProvider } from '@stripe/stripe-react-native';
-import apiService from './services/apiService';
+import apiService from '@/src/services/apiService';
 
 // We'll fetch the publishable key from the server at runtime instead of hard-coding it
 

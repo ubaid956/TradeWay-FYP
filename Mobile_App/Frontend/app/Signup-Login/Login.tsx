@@ -29,8 +29,8 @@ import { useRouter } from "expo-router";
 import Divider from "../Components/Divider";
 
 // Redux imports
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { loginUser, googleLoginUser, clearError } from "../store/slices/authSlice";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { loginUser, googleLoginUser, clearError } from "@/src/store/slices/authSlice";
 
 // import axios from 'axios' // Removed as we're using Redux now
 const { height, width } = Dimensions.get("window");

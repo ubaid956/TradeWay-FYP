@@ -15,12 +15,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAppSelector } from '../store/hooks';
-import { apiService } from '../services/apiService';
+import { useAppSelector } from '@/src/store/hooks';
+import { apiService } from '@/src/services/apiService';
 import CustomHeader from '../Components/Profile_Components/CustomHeader';
 import CustomButton from '../Components/CustomButton';
 import { globalStyles } from '@/Styles/globalStyles';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency } from '@/src/utils/currency';
 
 const { width, height } = Dimensions.get('window');
 

@@ -5,10 +5,13 @@ import { useRouter } from 'expo-router';
 import ProductCard from '../Components/HomePage/FeatureCard';
 import FeatureText from '../Components/HomePage/FeatureText';
 import HomeHeader from '../Components/HomePage/HomeHeader';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
+// import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useAppDispatch,useAppSelector } from '@/src/store/hooks';
 import Jobs from '../Driver/Jobs';
-import { fetchProducts } from '../store/slices/productSlice';
-import { fetchRecommendations } from '../store/slices/recommendationSlice';
+// import { fetchProducts } from '../store/slices/productSlice';
+import { fetchProducts } from '@/src/store/slices/productSlice';
+import { fetchRecommendations } from '@/src/store/slices/recommendationSlice';
+// import { fetchRecommendations } from '../store/slices/recommendationSlice';
 
 const { width } = Dimensions.get('window');
 const RECOMMENDED_CARD_WIDTH = width * 0.6;

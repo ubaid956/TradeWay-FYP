@@ -12,8 +12,8 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { globalStyles } from '@/Styles/globalStyles';
 import CustomHeader from '../Components/Headers/CustomHeader';
-import { apiService } from '../services/apiService';
-import { formatCurrency } from '../utils/currency';
+import { apiService } from '@/src/services/apiService';
+import { formatCurrency } from '@/src/utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 
 const statusColors: Record<string, { bg: string; text: string; dot: string }> = {

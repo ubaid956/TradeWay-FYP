@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { loginUser } from '../store/slices/authSlice';
+import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
+import { loginUser } from '@/src/store/slices/authSlice';
 
 const LoginTestComponent = () => {
   const dispatch = useAppDispatch();

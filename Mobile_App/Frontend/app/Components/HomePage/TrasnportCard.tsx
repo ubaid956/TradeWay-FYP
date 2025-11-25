@@ -2,7 +2,7 @@ import { globalStyles } from '@/Styles/globalStyles'
 import React from 'react'
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native'
 import CustomButton from '../CustomButton'
-import { formatCurrency } from '../../utils/currency'
+import { formatCurrency } from '@/src/utils/currency'
 
 const { width, height } = Dimensions.get('window')
 const TrasnportCard = ({ companyName, pricePerKm, location, rating, availability, image, specilization }) => {

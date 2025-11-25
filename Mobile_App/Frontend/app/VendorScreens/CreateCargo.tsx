@@ -13,7 +13,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import { globalStyles } from '@/Styles/globalStyles';
-import { apiService, CreateJobPayload } from '../services/apiService';
+import { apiService, CreateJobPayload } from '@/src/services/apiService';
 
 const { width } = Dimensions.get('window');
 

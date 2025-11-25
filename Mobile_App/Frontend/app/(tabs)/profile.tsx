@@ -17,7 +17,8 @@ import {
 import CustomButton from '../Components/CustomButton';
 import Profile_cart from '../Components/HomePage/Profile_cart';
 import HomeHeader from '../Components/HomePage/HomeHeader';
-import { apiService } from '../services/apiService';
+// import { apiService } from '../services/apiService';
+import apiService from '@/src/services/apiService';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect } from "expo-router";
 
@@ -25,9 +26,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 // Redux imports
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { logoutUser, updateUserProfile, fetchUserProfile } from '../store/slices/authSlice';
-
+// import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
+// import { logoutUser, updateUserProfile, fetchUserProfile } from '../store/slices/authSlice';
+import { logoutUser , updateUserProfile, fetchUserProfile} from '@/src/store/slices/authSlice';
 
 const { width, height } = Dimensions.get('window');
 

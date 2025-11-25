@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, View, ActivityIndicator, Image, StyleSheet, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import apiService from '../services/apiService';
-import { formatCurrency } from '../utils/currency';
+import apiService from '@/src/services/apiService';
+import { formatCurrency } from '@/src/utils/currency';
 import { globalStyles } from '@/Styles/globalStyles';
 import CustomHeader from '../Components/Headers/CustomHeader';
 

@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppSelector } from '../store/hooks';
+// import { useAppSelector } from '../store/hooks';
+import { useAppSelector } from '@/src/store/hooks';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { globalStyles } from '@/Styles/globalStyles';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import MessageComponent from '../Components/HomePage/MessagesComonent';
-import { API_BASE_URL } from '../config/api';
+// import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL } from '@/src/config/api';
 
 const defaultAvatar = require('../../assets/images/home/user.png');
 

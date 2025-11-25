@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import { globalStyles } from '@/Styles/globalStyles';
-import { apiService } from '../services/apiService';
-import { formatCurrency } from '../utils/currency';
+import { apiService } from '@/src/services/apiService';
+import { formatCurrency } from '@/src/utils/currency';
 
 const { width } = Dimensions.get('window');
 

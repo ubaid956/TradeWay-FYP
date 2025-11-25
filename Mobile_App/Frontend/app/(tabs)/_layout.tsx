@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Tabs, useRouter } from "expo-router";
 import { ReactNode, useEffect } from 'react';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector } from '@/src/store/hooks';
 
 import { Dimensions, Platform, StyleSheet, View } from "react-native";
 

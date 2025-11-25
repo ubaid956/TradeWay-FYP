@@ -18,8 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
-import { useAppSelector } from '../store/hooks';
-import { API_BASE_URL } from '../config/api';
+import { useAppSelector } from '@/src/store/hooks';
+import { API_BASE_URL } from '@/src/config/api';
 
 import MessageHeader from '../Components/HomePage/MessageHeader';
 

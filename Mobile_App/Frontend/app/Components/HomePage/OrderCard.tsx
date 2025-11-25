@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrency } from '@/src/utils/currency';
 
 const { width } = Dimensions.get('window');
 

@@ -18,9 +18,9 @@ import CustomHeader from '@/app/Components/Profile_Components/CustomHeader';
 import { globalStyles } from '@/Styles/globalStyles';
 import InputField from '../Components/InputFiled';
 import CustomButton from '../Components/CustomButton';
-import { apiService } from '../services/apiService';
-import { useAppDispatch } from '../store/hooks';
-import { updateUser } from '../store/slices/authSlice';
+import { apiService } from '@/src/services/apiService';
+import { useAppDispatch } from '@/src/store/hooks';
+import { updateUser } from '@/src/store/slices/authSlice';
 
 const { width, height } = Dimensions.get('window');
 

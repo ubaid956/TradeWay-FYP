@@ -13,8 +13,8 @@ import { useRouter } from 'expo-router';
 import { globalStyles } from '@/Styles/globalStyles';
 import CustomHeader from '../Components/Headers/CustomHeader';
 import ProductCard from '../Components/HomePage/FeatureCard';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchProducts } from '../store/slices/productSlice';
+import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
+import { fetchProducts } from '@/src/store/slices/productSlice';
 
 type CatalogProduct = {
   id: string;

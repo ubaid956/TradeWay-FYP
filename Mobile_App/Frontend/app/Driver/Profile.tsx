@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
 import HomeHeader from '../Components/HomePage/HomeHeader';
 import { globalStyles } from '@/Styles/globalStyles';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector } from '@/src/store/hooks';
 
 const { width, height } = Dimensions.get('window');
 

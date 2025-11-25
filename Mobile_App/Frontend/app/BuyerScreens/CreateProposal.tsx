@@ -9,14 +9,14 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAppSelector } from '../store/hooks';
-import { apiService } from '../services/apiService';
+import { useAppSelector } from '@/src/store/hooks';
+import { apiService } from '@/src/services/apiService';
 import CustomButton from '../Components/CustomButton';
 import { globalStyles } from '@/Styles/globalStyles';
 import InputField from '../Components/InputFiled';
 import CustomHeader from '../Components/Headers/CustomHeader';
 import { Ionicons } from '@expo/vector-icons';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency } from '@/src/utils/currency';
 
 const CreateProposal = () => {
     const params = useLocalSearchParams();
