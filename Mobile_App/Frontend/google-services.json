@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "39658053351",
+    "project_id": "tradeway-89ff8",
+    "storage_bucket": "tradeway-89ff8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:39658053351:android:475e5a23ef1abac2468c42",
+        "android_client_info": {
+          "package_name": "com.tradeway.fyp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "39658053351-70uohedbduquqh9i87t6cp7g4rn194fq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tradeway.fyp",
+            "certificate_hash": "bd1ac77d60365ed9295af15a9d4e7c678e273228"
+          }
+        },
+        {
+          "client_id": "39658053351-fo2q62mg1406us85r7u1md6keq261rfj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBETg_zsqtLZzXXQHzpYZw-baEAPOZwWFI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "39658053351-fo2q62mg1406us85r7u1md6keq261rfj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
