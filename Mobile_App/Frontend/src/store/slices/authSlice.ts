@@ -72,7 +72,7 @@ export const loginUser = createAsyncThunk(
                 throw new Error('Invalid response structure from server');
             }
         } catch (error: any) {
-            console.error('Login error details:', error);
+            console.warn('Login error details (handled):', error?.message || error);
             return rejectWithValue(error.message);
         }
     }

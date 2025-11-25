@@ -1,14 +1,22 @@
 import { globalStyles } from '@/Styles/globalStyles'
 import React from 'react'
-import { Text, View } from 'react-native'
+import { Text, TouchableOpacity, View } from 'react-native'
 
-const FeatureText = ({ title }) => {
-  return (
-    <View style={globalStyles.featureTextContainer}>
-      <Text style={globalStyles.featureText}>{title}</Text>
-      <Text style={globalStyles.seeAll}>See All {'>>'}</Text>
-    </View>
-  )
+type FeatureTextProps = {
+  title: string
+  showSeeAll?: boolean
+  onPressSeeAll?: () => void
 }
+
+const FeatureText = ({ title, showSeeAll = false, onPressSeeAll }: FeatureTextProps) => (
+  <View style={globalStyles.featureTextContainer}>
+    <Text style={globalStyles.featureText}>{title}</Text>
+    {showSeeAll && (
+      <TouchableOpacity onPress={onPressSeeAll} disabled={!onPressSeeAll}>
+        <Text style={globalStyles.seeAll}>See All {'>>'}</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+)
 
 export default FeatureText

@@ -9,10 +9,11 @@ import {
     Alert,
     Switch,
     Image,
-    ActivityIndicator
+    ActivityIndicator,
+    StyleSheet
 } from 'react-native';
-import React, { useState } from 'react';
-import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { apiService } from '../services/apiService';
 import { fetchSellerProducts } from '../store/slices/productSlice';
@@ -22,17 +23,41 @@ import { groupStyle } from '@/Styles/groupStyle';
 import InputField from '../Components/InputFiled';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { Product as ProductType } from '../store/slices/productSlice';
 
 
 import HomeHeader from '../Components/HomePage/HomeHeader'
 const { height, width } = Dimensions.get('window');
+
+const fallbackCategoryOptions = [
+    { label: 'Marble', value: 'marble' },
+    { label: 'Granite', value: 'granite' },
+    { label: 'Limestone', value: 'limestone' },
+    { label: 'Travertine', value: 'travertine' },
+    { label: 'Onyx', value: 'onyx' },
+    { label: 'Quartz', value: 'quartz' },
+    { label: 'Other', value: 'other' }
+];
+
+const fallbackUnitOptions = [
+    { label: 'Pieces', value: 'pieces' },
+    { label: 'Tons', value: 'tons' },
+    { label: 'Cubic Meters', value: 'cubic_meters' },
+    { label: 'Square Meters', value: 'square_meters' },
+    { label: 'Kilograms', value: 'kg' },
+    { label: 'Pounds', value: 'lbs' }
+];
 
 type GradingState = 'idle' | 'pending' | 'success' | 'error';
 
 const CreatePost = () => {
     const dispatch = useAppDispatch();
     const { token, user } = useAppSelector(state => state.auth);
+    const params = useLocalSearchParams();
+    const productParam = Array.isArray(params.productId) ? params.productId[0] : params.productId;
+    const editingProductId = typeof productParam === 'string' ? productParam : undefined;
+    const isEditing = Boolean(editingProductId);
 
     const [isLoading, setIsLoading] = useState(false);
     const [tagInput, setTagInput] = useState('');
@@ -40,27 +65,15 @@ const CreatePost = () => {
     const [isSelectingImages, setIsSelectingImages] = useState(false);
     const [gradingStatus, setGradingStatus] = useState<GradingState>('idle');
     const [gradingError, setGradingError] = useState<string | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [categoryOptions, setCategoryOptions] = useState(fallbackCategoryOptions);
+    const [unitOptions, setUnitOptions] = useState(fallbackUnitOptions);
+    const [isLoadingTaxonomy, setIsLoadingTaxonomy] = useState(false);
+    const [taxonomyError, setTaxonomyError] = useState<string | null>(null);
+    const [isPrefilling, setIsPrefilling] = useState(false);
+    const [prefillError, setPrefillError] = useState<string | null>(null);
+    const [editingProduct, setEditingProduct] = useState<ProductType | null>(null);
 
-    // Category options
-    const categoryOptions = [
-        { label: 'Marble', value: 'marble' },
-        { label: 'Granite', value: 'granite' },
-        { label: 'Limestone', value: 'limestone' },
-        { label: 'Travertine', value: 'travertine' },
-        { label: 'Onyx', value: 'onyx' },
-        { label: 'Quartz', value: 'quartz' },
-        { label: 'Other', value: 'other' }
-    ];
-
-    // Unit options
-    const unitOptions = [
-        { label: 'Pieces', value: 'pieces' },
-        { label: 'Tons', value: 'tons' },
-        { label: 'Cubic Meters', value: 'cubic_meters' },
-        { label: 'Square Meters', value: 'square_meters' },
-        { label: 'Kilograms', value: 'kg' },
-        { label: 'Pounds', value: 'lbs' }
-    ];
 
     const [formData, setFormData] = useState({
         title: '',
@@ -76,16 +89,128 @@ const CreatePost = () => {
         images: [] as string[]
     });
 
+    useEffect(() => {
+        const fetchTaxonomy = async () => {
+            try {
+                setIsLoadingTaxonomy(true);
+                setTaxonomyError(null);
+                const response = await apiService.products.getTaxonomy();
+                if (response.success && response.data) {
+                    const taxonomyData = response.data?.data || response.data;
+                    if (taxonomyData?.categories?.length) {
+                        const mappedCategories = taxonomyData.categories.map((cat: any) => ({
+                            label: cat.label || cat.name || cat.value,
+                            value: cat.value || cat.id || cat.label?.toLowerCase() || 'other'
+                        }));
+                        setCategoryOptions(mappedCategories);
+                        setFormData(prev => {
+                            if (mappedCategories.some(option => option.value === prev.category)) {
+                                return prev;
+                            }
+                            const fallbackValue = mappedCategories[0]?.value || prev.category;
+                            return { ...prev, category: fallbackValue };
+                        });
+                    }
+                    if (taxonomyData?.units?.length) {
+                        const mappedUnits = taxonomyData.units.map((unit: any) => ({
+                            label: unit.label || unit.name || unit.value,
+                            value: unit.value || unit.id || unit.label?.toLowerCase() || 'pieces'
+                        }));
+                        setUnitOptions(mappedUnits);
+                        setFormData(prev => {
+                            if (mappedUnits.some(option => option.value === prev.unit)) {
+                                return prev;
+                            }
+                            const fallbackValue = mappedUnits[0]?.value || prev.unit;
+                            return { ...prev, unit: fallbackValue };
+                        });
+                    }
+                }
+            } catch (error: any) {
+                console.warn('Taxonomy fetch failed:', error?.message || error);
+                setTaxonomyError('Using default options while taxonomy sync failed.');
+            } finally {
+                setIsLoadingTaxonomy(false);
+            }
+        };
+
+        fetchTaxonomy();
+    }, []);
+
+    useEffect(() => {
+        if (!isEditing || !editingProductId) {
+            setEditingProduct(null);
+            return;
+        }
+
+        let isMounted = true;
+
+        const loadProduct = async () => {
+            try {
+                setIsPrefilling(true);
+                setPrefillError(null);
+                const response = await apiService.products.getProductById(editingProductId, token || undefined);
+                if (!response.success) {
+                    throw new Error(response.error || 'Failed to load product details');
+                }
+                const product = response.data?.data || response.data;
+                if (!product) {
+                    throw new Error('Product not found');
+                }
+
+                if (!isMounted) return;
+
+                const quantityValue = product.availability?.availableQuantity ?? product.quantity ?? '';
+                const gradeVeining = product.specifications?.veining || '';
+
+                setFormData((prev) => ({
+                    ...prev,
+                    title: product.title || '',
+                    description: product.description || '',
+                    veining: gradeVeining,
+                    tags: Array.isArray(product.tags) ? product.tags.filter(Boolean) : [],
+                    price: product.price?.toString() || '',
+                    quantity: quantityValue?.toString() || '',
+                    unit: product.unit || prev.unit,
+                    location: product.location || '',
+                    shipping: !!product.shipping?.isShippingAvailable,
+                    category: product.category || prev.category,
+                    images: product.images || []
+                }));
+                setSelectedImages(product.images || []);
+                setEditingProduct(product);
+                setShowAdvanced(Boolean(gradeVeining || (product.tags && product.tags.length) || product.shipping?.isShippingAvailable));
+                setGradingStatus('idle');
+                setGradingError(null);
+            } catch (error: any) {
+                console.error('Failed to prefill product:', error);
+                if (!isMounted) return;
+                setPrefillError(error.message || 'Unable to load product information.');
+            } finally {
+                if (isMounted) {
+                    setIsPrefilling(false);
+                }
+            }
+        };
+
+        loadProduct();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isEditing, editingProductId, token]);
+
 
     const handleChange = (name: string, value: string | boolean) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
     const addTag = () => {
-        if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+        const sanitized = tagInput.trim();
+        if (sanitized && !formData.tags.includes(sanitized)) {
             setFormData(prev => ({
                 ...prev,
-                tags: [...prev.tags, tagInput.trim()]
+                tags: [...prev.tags, sanitized]
             }));
             setTagInput('');
         }
@@ -247,6 +372,76 @@ const CreatePost = () => {
         setSelectedImages(prev => prev.filter(uri => uri !== imageUri));
     };
 
+    const buildProductPayload = (price: number, quantity: number) => {
+        const trimmedTitle = formData.title.trim();
+        const trimmedDescription = formData.description.trim();
+        const trimmedLocation = formData.location.trim();
+        const trimmedVeining = formData.veining.trim();
+        const uniqueTags = Array.from(new Set(formData.tags.map(tag => tag.trim()).filter(Boolean)));
+
+        const payload: any = {
+            title: trimmedTitle,
+            description: trimmedDescription,
+            category: formData.category,
+            price,
+            quantity,
+            unit: formData.unit,
+            location: trimmedLocation,
+            availability: {
+                isAvailable: quantity > 0,
+                availableQuantity: quantity,
+                minimumOrder: 1
+            },
+            shipping: { isShippingAvailable: !!formData.shipping },
+            images: selectedImages
+        };
+
+        if (uniqueTags.length) {
+            payload.tags = uniqueTags;
+        }
+
+        if (trimmedVeining) {
+            payload.specifications = { veining: trimmedVeining };
+        }
+
+        return payload;
+    };
+
+    const headerTitle = isEditing ? 'Edit Listing' : 'Post';
+    const manualGradingAvailable = Boolean(isEditing && editingProduct && (editingProduct.grading?.status !== 'completed'));
+
+    const handleManualGrading = async () => {
+        if (!editingProductId) {
+            return;
+        }
+        if (!selectedImages.length) {
+            Alert.alert('Images required', 'At least one image is needed to run AI grading.');
+            return;
+        }
+        try {
+            setGradingStatus('pending');
+            setGradingError(null);
+            const gradeResponse = await apiService.grading.gradeProduct(editingProductId, {
+                imageUrls: selectedImages,
+                promptContext: `Manual grading triggered while editing by ${user?.name || 'vendor'}`,
+            });
+
+            if (!gradeResponse.success) {
+                throw new Error(gradeResponse.error || 'Failed to run AI grading.');
+            }
+
+            const gradeData = gradeResponse.data?.data || gradeResponse.data;
+            setGradingStatus('success');
+            setEditingProduct((prev) => (prev ? { ...prev, grading: gradeData } : prev));
+            Alert.alert('AI grading complete', gradeData?.summary ? gradeData.summary : 'Grading results are ready.');
+            dispatch(fetchSellerProducts());
+        } catch (error: any) {
+            console.error('Manual grading error:', error);
+            setGradingStatus('error');
+            setGradingError(error?.message || 'Unable to run AI grading right now.');
+        }
+    };
+
     const onSubmit = async () => {
         try {
             // Comprehensive validation
@@ -261,13 +456,15 @@ const CreatePost = () => {
             }
 
             // Validate title length
-            if (formData.title.length < 3) {
+            const trimmedTitle = formData.title.trim();
+            if (trimmedTitle.length < 3) {
                 Alert.alert('Error', 'Title must be at least 3 characters long');
                 return;
             }
 
             // Validate description length
-            if (formData.description.length < 10) {
+            const trimmedDescription = formData.description.trim();
+            if (trimmedDescription.length < 10) {
                 Alert.alert('Error', 'Description must be at least 10 characters long');
                 return;
             }
@@ -287,7 +484,8 @@ const CreatePost = () => {
             }
 
             // Validate location
-            if (formData.location.length < 2) {
+            const trimmedLocation = formData.location.trim();
+            if (trimmedLocation.length < 2) {
                 Alert.alert('Error', 'Please enter a valid location');
                 return;
             }
@@ -307,32 +505,30 @@ const CreatePost = () => {
             setGradingStatus('idle');
             setGradingError(null);
 
-            const payload = {
-                title: formData.title,
-                description: formData.description,
-                category: formData.category,
-                tags: formData.tags,
-                price: price,
-                quantity: quantity,
-                unit: formData.unit,
-                location: formData.location,
-                specifications: {
-                    veining: formData.veining
-                },
-                availability: {
-                    isAvailable: true,
-                    availableQuantity: quantity,
-                    minimumOrder: 1
-                },
-                shipping: {
-                    isShippingAvailable: formData.shipping
-                },
-                images: selectedImages
-            };
+            const payload = buildProductPayload(price, quantity);
 
-            console.log('Creating product with payload:', payload);
-            console.log('Using token:', token ? 'Token available' : 'No token');
-            console.log('Selected images:', selectedImages);
+            if (isEditing && editingProductId) {
+                const updateResponse = await apiService.products.updateProduct(editingProductId, payload);
+                if (updateResponse.success) {
+                    const updatedProduct = updateResponse.data?.data || updateResponse.data;
+                    if (updatedProduct) {
+                        setEditingProduct(updatedProduct);
+                        if (Array.isArray(updatedProduct.images) && updatedProduct.images.length) {
+                            setSelectedImages(updatedProduct.images);
+                        }
+                    }
+                    dispatch(fetchSellerProducts());
+                    Alert.alert('Listing updated', 'Your product details have been saved.', [
+                        {
+                            text: 'OK',
+                            onPress: () => router.back()
+                        }
+                    ]);
+                } else {
+                    throw new Error(updateResponse.error || 'Failed to update product');
+                }
+                return;
+            }
 
             // Call the API to create the product with images
             const response = await apiService.products.createProductWithImages(payload, selectedImages);
@@ -362,6 +558,7 @@ const CreatePost = () => {
                         if (normalizedGrade === 'reject') {
                             gradeRejected = true;
                             setGradingStatus('error');
+                            setGradingError('AI could not verify marble quality from these images. Please upload clearer slab shots and retry grading.');
                         } else {
                             setGradingStatus('success');
                         }
@@ -373,29 +570,20 @@ const CreatePost = () => {
                     }
                 }
 
-                if (gradeRejected && createdProduct?._id) {
-                    try {
-                        await apiService.products.deleteProduct(createdProduct._id);
-                    } catch (deleteErr) {
-                        console.error('Failed to remove rejected product:', deleteErr);
-                    }
-
-                    Alert.alert(
-                        'Images not accepted',
-                        'Our AI could not detect a marble product in the uploaded photos. Please upload clear marble slab images and try again.'
-                    );
-
-                    return;
-                }
-
                 // Refresh the seller products list
                 dispatch(fetchSellerProducts());
 
                 Alert.alert(
-                    gradingFailed ? 'Product posted (grading pending)' : 'Product created and graded',
-                    gradingFailed
-                        ? 'Your listing is live but we could not finish AI grading automatically. Please retry from the dashboard.'
-                        : `Listing is live and graded${gradeLabel ? ` as ${gradeLabel.toUpperCase()}` : ''}.${gradeSummary ? `\n${gradeSummary}` : ''}`,
+                    gradeRejected
+                        ? 'Listing posted with grading issue'
+                        : gradingFailed
+                            ? 'Product posted (grading pending)'
+                            : 'Product created and graded',
+                    gradeRejected
+                        ? 'Your listing is live but our AI rejected the current photos. You can update images and retry grading from the product details screen.'
+                        : gradingFailed
+                            ? 'Your listing is live but we could not finish AI grading automatically. Please retry from the dashboard.'
+                            : `Listing is live and graded${gradeLabel ? ` as ${gradeLabel.toUpperCase()}` : ''}.${gradeSummary ? `\n${gradeSummary}` : ''}`,
                     [
                         {
                             text: 'OK',
@@ -435,9 +623,33 @@ const CreatePost = () => {
             setIsLoading(false);
         }
     };
+    if (isEditing && isPrefilling) {
+        return (
+            <View style={globalStyles.container}>
+                <HomeHeader title={headerTitle} profile />
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#0758C2" />
+                    <Text style={{ marginTop: 12, color: '#374151' }}>Loading listing details...</Text>
+                </View>
+            </View>
+        );
+    }
+
+    if (isEditing && prefillError) {
+        return (
+            <View style={globalStyles.container}>
+                <HomeHeader title={headerTitle} profile />
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+                    <Text style={{ color: '#B42318', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{prefillError}</Text>
+                    <CustomButton title="Go back" onPress={() => router.back()} />
+                </View>
+            </View>
+        );
+    }
+
     return (
         <View style={globalStyles.container}>
-            <HomeHeader title="Post" profile />
+            <HomeHeader title={headerTitle} profile />
 
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
@@ -448,6 +660,41 @@ const CreatePost = () => {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
+                    {isEditing && (
+                        <View style={{
+                            backgroundColor: '#E0ECFF',
+                            padding: 12,
+                            borderRadius: 12,
+                            marginBottom: 16,
+                            width: width * 0.9,
+                            alignSelf: 'center'
+                        }}>
+                            <Text style={{ color: '#1E3A8A', fontWeight: '600' }}>Editing existing listing</Text>
+                            <Text style={{ color: '#1E3A8A', marginTop: 4 }}>
+                                Changes are saved instantly for buyers. AI grading runs only when creating a new listing.
+                            </Text>
+                            {manualGradingAvailable ? (
+                                <TouchableOpacity
+                                    style={editStyles.manualGradeButton}
+                                    onPress={handleManualGrading}
+                                    disabled={gradingStatus === 'pending'}
+                                >
+                                    {gradingStatus === 'pending' ? (
+                                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                                    ) : (
+                                        <Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 8 }} />
+                                    )}
+                                    <Text style={editStyles.manualGradeButtonText}>
+                                        {gradingStatus === 'pending' ? 'Grading…' : 'Run AI grading'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : editingProduct?.grading?.grade ? (
+                                <Text style={{ color: '#1E3A8A', marginTop: 8 }}>
+                                    Current AI grade: {editingProduct.grading.grade.toUpperCase()}
+                                </Text>
+                            ) : null}
+                        </View>
+                    )}
                     {/* Title */}
                     <View style={groupStyle.inputWrapper}>
                         <Text style={groupStyle.label}>Title *</Text>
@@ -472,76 +719,125 @@ const CreatePost = () => {
                         />
                     </View>
 
-                    {/* Veining */}
-                    <View style={groupStyle.inputWrapper}>
-                        <Text style={groupStyle.label}>Veining</Text>
-                        <InputField
-                            placeholder="e.g. White with gray veining"
-                            icon="color-palette"
-                            value={formData.veining}
-                            onChangeText={(text) => handleChange('veining', text)}
+                    <TouchableOpacity
+                        onPress={() => setShowAdvanced(prev => !prev)}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: width * 0.85,
+                            alignSelf: 'center',
+                            paddingVertical: 12,
+                            marginTop: 8,
+                        }}
+                    >
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#111' }}>Advanced details</Text>
+                        <MaterialIcons
+                            name={showAdvanced ? 'expand-less' : 'expand-more'}
+                            size={24}
+                            color="#0758C2"
                         />
-                    </View>
+                    </TouchableOpacity>
 
-                    {/* Tags */}
-                    <View style={groupStyle.inputWrapper}>
-                        <Text style={groupStyle.label}>Tags</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, width: width * 0.85, }}>
-                            <InputField
-                                placeholder="Add tag (e.g. premium)"
-                                icon="pricetag"
-                                value={tagInput}
-                                onChangeText={setTagInput}
-                                style={{ flex: 1, marginRight: 10 }}
-                            />
-                            <TouchableOpacity
-                                onPress={addTag}
-                                style={{
-                                    backgroundColor: '#0758C2',
-                                    paddingHorizontal: 15,
-                                    paddingVertical: 12,
-                                    borderRadius: 10,
-                                    height: 50,
-                                    justifyContent: 'center'
-                                }}
-                            >
-                                <Text style={{ color: 'white', fontWeight: 'bold' }}>Add</Text>
-                            </TouchableOpacity>
-                        </View>
-                        {formData.tags.length > 0 && (
-                            <View style={{
-                                flexDirection: 'row',
-                                flexWrap: 'wrap',
-                                marginTop: 5,
-                                paddingHorizontal: 10,
-                                paddingVertical: 10,
-                                backgroundColor: '#CFCECE',
-                                borderRadius: 10,
-                                minHeight: 50,
-                                alignItems: 'flex-start'
-                            }}>
-                                {formData.tags.map((tag, index) => (
+                    {showAdvanced && (
+                        <View style={{ width: width * 0.9, alignSelf: 'center' }}>
+                            {/* Veining */}
+                            <View style={groupStyle.inputWrapper}>
+                                <Text style={groupStyle.label}>Veining</Text>
+                                <InputField
+                                    placeholder="e.g. White with gray veining"
+                                    icon="color-palette"
+                                    value={formData.veining}
+                                    onChangeText={(text) => handleChange('veining', text)}
+                                />
+                            </View>
+
+                            {/* Tags */}
+                            <View style={groupStyle.inputWrapper}>
+                                <Text style={groupStyle.label}>Tags</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, width: width * 0.85, }}>
+                                    <InputField
+                                        placeholder="Add tag (e.g. premium)"
+                                        icon="pricetag"
+                                        value={tagInput}
+                                        onChangeText={setTagInput}
+                                        style={{ flex: 1, marginRight: 10 }}
+                                    />
                                     <TouchableOpacity
-                                        key={index}
-                                        onPress={() => removeTag(tag)}
+                                        onPress={addTag}
                                         style={{
                                             backgroundColor: '#0758C2',
-                                            paddingHorizontal: 12,
-                                            paddingVertical: 6,
-                                            borderRadius: 15,
-                                            marginRight: 8,
-                                            marginBottom: 8,
-                                            flexDirection: 'row',
-                                            alignItems: 'center'
+                                            paddingHorizontal: 15,
+                                            paddingVertical: 12,
+                                            borderRadius: 10,
+                                            height: 50,
+                                            justifyContent: 'center'
                                         }}
                                     >
-                                        <Text style={{ color: 'white', marginRight: 5, fontSize: 14 }}>{tag}</Text>
-                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>×</Text>
+                                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Add</Text>
                                     </TouchableOpacity>
-                                ))}
+                                </View>
+                                {formData.tags.length > 0 && (
+                                    <View style={{
+                                        flexDirection: 'row',
+                                        flexWrap: 'wrap',
+                                        marginTop: 5,
+                                        paddingHorizontal: 10,
+                                        paddingVertical: 10,
+                                        backgroundColor: '#CFCECE',
+                                        borderRadius: 10,
+                                        minHeight: 50,
+                                        alignItems: 'flex-start'
+                                    }}>
+                                        {formData.tags.map((tag, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                onPress={() => removeTag(tag)}
+                                                style={{
+                                                    backgroundColor: '#0758C2',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    borderRadius: 15,
+                                                    marginRight: 8,
+                                                    marginBottom: 8,
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <Text style={{ color: 'white', marginRight: 5, fontSize: 14 }}>{tag}</Text>
+                                                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>×</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
-                        )}
-                    </View>
+
+                            {/* Shipping */}
+                            <View style={groupStyle.inputWrapper}>
+                                <Text style={groupStyle.label}>Shipping Available</Text>
+                                <View style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    width: width * 0.85,
+                                    backgroundColor: '#CFCECE',
+                                    borderRadius: 10,
+                                    paddingHorizontal: 10,
+                                    alignSelf: 'center',
+                                    height: height * 0.062,
+                                    marginVertical: 8,
+                                }}>
+                                    <Text style={{ fontSize: 16, color: '#000' }}>Enable shipping</Text>
+                                    <Switch
+                                        value={formData.shipping}
+                                        onValueChange={(value) => handleChange('shipping', value)}
+                                        trackColor={{ false: '#767577', true: '#0758C2' }}
+                                        thumbColor={formData.shipping ? '#fff' : '#f4f3f4'}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+                    )}
 
                     {/* Price */}
                     <View style={groupStyle.inputWrapper}>
@@ -570,33 +866,20 @@ const CreatePost = () => {
                     {/* Unit */}
                     <View style={groupStyle.inputWrapper}>
                         <Text style={groupStyle.label}>Unit</Text>
-                        <View style={{
-                            flexDirection: 'row',
-                            width: width * 0.85,
-                            alignItems: 'center',
-                            backgroundColor: '#CFCECE',
-                            borderRadius: 10,
-                            paddingHorizontal: 10,
-                            alignSelf: 'center',
-                            height: height * 0.062,
-                            marginVertical: 8,
-                        }}>
+                        <View style={pickerStyles.container}>
                             <Picker
                                 selectedValue={formData.unit}
                                 onValueChange={(value) => handleChange('unit', value)}
-                                style={{
-                                    flex: 1,
-                                    height: height * 0.062,
-                                    color: '#000'
-                                }}
-                                itemStyle={{ color: '#000' }}
+                                dropdownIconColor="#0758C2"
+                                style={pickerStyles.picker}
+                                itemStyle={pickerStyles.pickerItem}
                             >
                                 {unitOptions.map((option) => (
                                     <Picker.Item
                                         key={option.value}
                                         label={option.label}
                                         value={option.value}
-                                        color="#000"
+                                        color="#111827"
                                     />
                                 ))}
                             </Picker>
@@ -617,62 +900,30 @@ const CreatePost = () => {
                     {/* Category */}
                     <View style={groupStyle.inputWrapper}>
                         <Text style={groupStyle.label}>Category</Text>
-                        <View style={{
-                            flexDirection: 'row',
-                            width: width * 0.85,
-                            alignItems: 'center',
-                            backgroundColor: '#CFCECE',
-                            borderRadius: 10,
-                            paddingHorizontal: 10,
-                            alignSelf: 'center',
-                            height: height * 0.062,
-                            marginVertical: 8,
-                        }}>
+                        <View style={pickerStyles.container}>
                             <Picker
                                 selectedValue={formData.category}
                                 onValueChange={(value) => handleChange('category', value)}
-                                style={{
-                                    flex: 1,
-                                    height: height * 0.062,
-                                    color: '#000'
-                                }}
-                                itemStyle={{ color: '#000' }}
+                                dropdownIconColor="#0758C2"
+                                style={pickerStyles.picker}
+                                itemStyle={pickerStyles.pickerItem}
                             >
                                 {categoryOptions.map((option) => (
                                     <Picker.Item
                                         key={option.value}
                                         label={option.label}
                                         value={option.value}
-                                        color="#000"
+                                        color="#111827"
                                     />
                                 ))}
                             </Picker>
                         </View>
-                    </View>
-
-                    {/* Shipping */}
-                    <View style={groupStyle.inputWrapper}>
-                        <Text style={groupStyle.label}>Shipping Available</Text>
-                        <View style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            width: width * 0.85,
-                            backgroundColor: '#CFCECE',
-                            borderRadius: 10,
-                            paddingHorizontal: 10,
-                            alignSelf: 'center',
-                            height: height * 0.062,
-                            marginVertical: 8,
-                        }}>
-                            <Text style={{ fontSize: 16, color: '#000' }}>Enable shipping</Text>
-                            <Switch
-                                value={formData.shipping}
-                                onValueChange={(value) => handleChange('shipping', value)}
-                                trackColor={{ false: '#767577', true: '#0758C2' }}
-                                thumbColor={formData.shipping ? '#fff' : '#f4f3f4'}
-                            />
-                        </View>
+                        {isLoadingTaxonomy && (
+                            <Text style={pickerStyles.helperText}>Syncing taxonomy…</Text>
+                        )}
+                        {taxonomyError && !isLoadingTaxonomy && (
+                            <Text style={[pickerStyles.helperText, { color: '#B42318' }]}>{taxonomyError}</Text>
+                        )}
                     </View>
 
                     {/* Images */}
@@ -680,7 +931,7 @@ const CreatePost = () => {
                         <Text style={groupStyle.label}>Images</Text>
                         <TouchableOpacity
                             onPress={pickImages}
-                            disabled={isSelectingImages}
+                            disabled={isSelectingImages || isEditing}
                             style={{
                                 backgroundColor: '#CFCECE',
                                 borderRadius: 10,
@@ -689,7 +940,7 @@ const CreatePost = () => {
                                 borderStyle: 'dashed',
                                 borderWidth: 2,
                                 borderColor: '#999',
-                                opacity: isSelectingImages ? 0.6 : 1
+                                opacity: (isSelectingImages || isEditing) ? 0.6 : 1
                             }}
                         >
                             {isSelectingImages ? (
@@ -744,6 +995,11 @@ const CreatePost = () => {
                                                 }}
                                                 resizeMode="cover"
                                             />
+                                        {isEditing && (
+                                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>
+                                                New image uploads will be supported in a future update. You can remove existing photos above or keep them as-is.
+                                            </Text>
+                                        )}
                                             <TouchableOpacity
                                                 onPress={() => removeImage(imageUri)}
                                                 style={{
@@ -823,7 +1079,7 @@ const CreatePost = () => {
                                 isLoading ? (
                                     <ActivityIndicator size="small" color="white" />
                                 ) : (
-                                    "Create Product"
+                                    isEditing ? 'Save Changes' : 'Create Product'
                                 )
                             }
                             onPress={onSubmit}
@@ -836,5 +1092,57 @@ const CreatePost = () => {
         </View>
     )
 }
+
+const pickerStyles = StyleSheet.create({
+    container: {
+        width: width * 0.85,
+        alignSelf: 'center',
+        borderWidth: 1,
+        borderColor: '#CBD5F5',
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        minHeight: 52,
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+        marginVertical: 8,
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 1,
+    },
+    picker: {
+        height: 52,
+        color: '#0F172A',
+        width: '100%',
+    },
+    pickerItem: {
+        color: '#0F172A',
+        fontSize: 16,
+    },
+    helperText: {
+        alignSelf: 'center',
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 4,
+    }
+});
+
+const editStyles = StyleSheet.create({
+    manualGradeButton: {
+        marginTop: 12,
+        backgroundColor: '#1E3A8A',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 24,
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start'
+    },
+    manualGradeButtonText: {
+        color: '#fff',
+        fontWeight: '600'
+    }
+});
 
 export default CreatePost

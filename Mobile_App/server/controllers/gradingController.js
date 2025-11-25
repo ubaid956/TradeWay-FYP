@@ -1,5 +1,27 @@
 import Product from '../models/Product.js';
 import { gradeMarbleImages, prepareInlineImages } from '../services/marbleGradingService.js';
+import { PRODUCT_GRADE_VALUES } from '../../shared/taxonomy.js';
+
+const normalizeGradeLabel = (grade) => (typeof grade === 'string' ? grade.trim().toLowerCase() : '');
+
+const applySpecificationGrade = (product, nextGrade) => {
+  const specDoc = product.specifications?.toObject
+    ? product.specifications.toObject()
+    : { ...(product.specifications || {}) };
+
+  const prevGrade = specDoc.grade || undefined;
+
+  if (nextGrade) {
+    specDoc.grade = nextGrade;
+  } else {
+    delete specDoc.grade;
+  }
+
+  if (prevGrade !== nextGrade) {
+    product.specifications = specDoc;
+    product.markModified('specifications');
+  }
+};
 
 export const gradeMarbleController = async (req, res, next) => {
   const { productId, imageUrls = [], promptContext } = req.body || {};
@@ -64,10 +86,13 @@ export const gradeMarbleController = async (req, res, next) => {
     });
 
     const requestedAt = product.grading?.requestedAt || new Date();
+    const normalizedGrade = normalizeGradeLabel(structured.grade);
+    const specGrade = PRODUCT_GRADE_VALUES.includes(normalizedGrade) ? normalizedGrade : undefined;
+    applySpecificationGrade(product, specGrade);
 
     product.grading = {
       status: 'completed',
-      grade: structured.grade,
+      grade: normalizedGrade || structured.grade || undefined,
       confidence: structured.confidence,
       summary: structured.summary,
       issues: structured.issues,

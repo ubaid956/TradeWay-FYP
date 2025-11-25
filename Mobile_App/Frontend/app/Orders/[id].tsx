@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, View, ActivityIndicator, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import apiService from '../services/apiService';
-import { useAppSelector } from '../store/hooks';
-import { useState } from 'react';
+import apiService from '@/src/services/apiService';
+import { useAppSelector } from '@/src/store/hooks';
 import { useStripe } from '@stripe/stripe-react-native';
+import { formatCurrency } from '@/src/utils/currency';
 import { globalStyles } from '@/Styles/globalStyles';
 
 const { width } = Dimensions.get('window');
@@ -105,7 +105,7 @@ const OrderDetail = () => {
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.value}>{productName}</Text>
               <Text style={styles.subtle}>Qty: {quantity}</Text>
-              <Text style={styles.subtle}>Unit Price: ${unitPrice.toFixed(2)}</Text>
+              <Text style={styles.subtle}>Unit Price: {formatCurrency(unitPrice, { fractionDigits: 2 })}</Text>
             </View>
           </View>
         </View>
@@ -114,15 +114,15 @@ const OrderDetail = () => {
           <Text style={styles.label}>Amounts</Text>
           <View style={styles.rowBetween}>
             <Text style={styles.subtle}>Subtotal</Text>
-            <Text style={styles.value}>${(unitPrice * quantity).toFixed(2)}</Text>
+            <Text style={styles.value}>{formatCurrency(unitPrice * quantity, { fractionDigits: 2 })}</Text>
           </View>
           <View style={styles.rowBetween}>
             <Text style={styles.subtle}>Shipping</Text>
-            <Text style={styles.value}>${Number(order.orderDetails?.shippingCost || 0).toFixed(2)}</Text>
+            <Text style={styles.value}>{formatCurrency(Number(order.orderDetails?.shippingCost || 0), { fractionDigits: 2 })}</Text>
           </View>
           <View style={[styles.rowBetween, { marginTop: 6 }]}> 
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalVal}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>{formatCurrency(total, { fractionDigits: 2 })}</Text>
           </View>
         </View>
 
@@ -180,7 +180,9 @@ const OrderDetail = () => {
                 }
               }}
             >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{processingPayment ? 'Processing…' : `Pay $${total.toFixed(2)}`}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>
+                {processingPayment ? 'Processing…' : `Pay ${formatCurrency(total, { fractionDigits: 2 })}`}
+              </Text>
             </TouchableOpacity>
           </View>
         )}

@@ -8,6 +8,7 @@ export const createBid = async (req, res) => {
     try {
         const { productId, bidAmount, quantity, message } = req.body;
         const bidderId = req.user._id || req.user.id;
+        const bidderIdStr = bidderId?.toString();
 
         // Validate required fields
         if (!productId || !bidAmount || !quantity) {
@@ -35,7 +36,7 @@ export const createBid = async (req, res) => {
         }
 
         // Check if user is not the seller
-        if (product.seller.toString() === bidderId) {
+        if (product.seller.toString() === bidderIdStr) {
             return res.status(400).json({
                 success: false,
                 message: 'You cannot bid on your own product'
@@ -78,7 +79,16 @@ export const createBid = async (req, res) => {
             product: productId,
             bidAmount,
             quantity,
-            message: message || ''
+            message: message || '',
+            awaitingAction: 'vendor',
+            counterHistory: [
+                {
+                    actor: 'buyer',
+                    bidAmount,
+                    quantity,
+                    message: message || ''
+                }
+            ]
         });
 
         await bid.save();
@@ -110,6 +120,7 @@ export const getBidsForProduct = async (req, res) => {
     try {
         const { productId } = req.params;
         const sellerId = req.user._id || req.user.id;
+        const sellerIdStr = sellerId?.toString();
 
         // Verify that the user is the seller of the product
         const product = await Product.findById(productId);
@@ -120,7 +131,7 @@ export const getBidsForProduct = async (req, res) => {
             });
         }
 
-        if (product.seller.toString() !== sellerId) {
+        if (product.seller.toString() !== sellerIdStr) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to view bids for this product'
@@ -207,6 +218,7 @@ export const acceptBid = async (req, res) => {
     try {
         const { bidId } = req.params;
         const sellerId = req.user._id || req.user.id;
+        const sellerIdStr = sellerId?.toString();
 
         const bid = await Bid.findById(bidId).populate('product');
         if (!bid) {
@@ -217,7 +229,7 @@ export const acceptBid = async (req, res) => {
         }
 
         // Check if user is the seller of the product
-        if (bid.product.seller.toString() !== sellerId) {
+        if (bid.product.seller.toString() !== sellerIdStr) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to accept this bid'
@@ -242,6 +254,12 @@ export const acceptBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'accepted';
+        bid.awaitingAction = undefined;
+        bid.agreement = {
+            amount: bid.bidAmount,
+            quantity: bid.quantity,
+            confirmedAt: new Date()
+        };
         bid.sellerResponse = {
             message: req.body.message || 'Bid accepted',
             respondedAt: Date.now()
@@ -333,6 +351,7 @@ export const rejectBid = async (req, res) => {
     try {
         const { bidId } = req.params;
         const sellerId = req.user._id || req.user.id;
+        const sellerIdStr = sellerId?.toString();
 
         const bid = await Bid.findById(bidId).populate('product');
         if (!bid) {
@@ -343,7 +362,7 @@ export const rejectBid = async (req, res) => {
         }
 
         // Check if user is the seller of the product
-        if (bid.product.seller.toString() !== sellerId) {
+        if (bid.product.seller.toString() !== sellerIdStr) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to reject this bid'
@@ -360,6 +379,7 @@ export const rejectBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'rejected';
+        bid.awaitingAction = undefined;
         bid.sellerResponse = {
             message: req.body.message || 'Bid rejected',
             respondedAt: Date.now()
@@ -393,6 +413,7 @@ export const withdrawBid = async (req, res) => {
     try {
         const { bidId } = req.params;
         const bidderId = req.user._id || req.user.id;
+        const bidderIdStr = bidderId?.toString();
 
         const bid = await Bid.findById(bidId);
         if (!bid) {
@@ -403,7 +424,7 @@ export const withdrawBid = async (req, res) => {
         }
 
         // Check if user is the bidder
-        if (bid.bidder.toString() !== bidderId) {
+        if (bid.bidder.toString() !== bidderIdStr) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to withdraw this bid'
@@ -420,6 +441,7 @@ export const withdrawBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'withdrawn';
+        bid.awaitingAction = undefined;
         await bid.save();
 
         res.json({
@@ -436,6 +458,87 @@ export const withdrawBid = async (req, res) => {
             error: error.message
         });
     }
+};
+
+export const counterBid = async (req, res) => {
+    try {
+        const { bidId } = req.params;
+        const { bidAmount, quantity, message } = req.body || {};
+        const userId = (req.user._id || req.user.id)?.toString();
+
+        const bid = await Bid.findById(bidId).populate('product');
+        if (!bid) {
+            return res.status(404).json({ success: false, message: 'Bid not found' });
+        }
+
+        if (bid.status !== 'pending') {
+            return res.status(400).json({ success: false, message: 'Only pending bids can be negotiated' });
+        }
+
+        if (!Array.isArray(bid.counterHistory)) {
+            bid.counterHistory = [];
+        }
+
+        const bidderId = bid.bidder?.toString();
+        const sellerId = bid.product?.seller?.toString();
+
+        let actor;
+        if (bidderId === userId) actor = 'buyer';
+        else if (sellerId === userId) actor = 'vendor';
+        else return res.status(403).json({ success: false, message: 'Not authorized to modify this bid' });
+
+        if (bid.awaitingAction && bid.awaitingAction !== actor) {
+            return res.status(400).json({
+                success: false,
+                message: `Awaiting ${bid.awaitingAction} response before sending another offer`
+            });
+        }
+
+        const nextAmount = bidAmount ?? bid.bidAmount;
+        const nextQty = quantity ?? bid.quantity;
+
+        if (!nextAmount || nextAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Offer amount must be greater than 0' });
+        }
+        if (!nextQty || nextQty <= 0) {
+            return res.status(400).json({ success: false, message: 'Quantity must be greater than 0' });
+        }
+
+        const availableQuantity = bid.product?.availability?.availableQuantity ?? bid.product?.quantity ?? 0;
+        if (nextQty > availableQuantity) {
+            return res.status(400).json({ success: false, message: 'Quantity exceeds available stock' });
+        }
+
+        bid.bidAmount = nextAmount;
+        bid.quantity = nextQty;
+        bid.awaitingAction = actor === 'buyer' ? 'vendor' : 'buyer';
+        bid.counterHistory.push({ actor, bidAmount: nextAmount, quantity: nextQty, message });
+        if (actor === 'vendor') {
+            bid.sellerResponse = {
+                message: message || 'Vendor countered the offer',
+                respondedAt: Date.now()
+            };
+        } else if (message) {
+            bid.message = message;
+        }
+
+        await bid.save();
+        await bid.populate([
+            { path: 'product', select: 'title price images seller location' },
+            { path: 'bidder', select: 'name email phone location' }
+        ]);
+
+        return res.json({ success: true, message: 'Counter offer recorded', data: bid });
+    } catch (error) {
+        console.error('Counter bid error:', error);
+        return res.status(500).json({ success: false, message: 'Error recording counter offer', error: error.message });
+    }
+};
+
+// Update a pending bid (bidder action)
+export const updateBid = async (req, res) => {
+    // Backward compatibility: treat buyer updates as counter offers
+    return counterBid(req, res);
 };
 
 // Get all proposals for vendor (across all their products)

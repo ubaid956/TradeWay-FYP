@@ -18,6 +18,7 @@ import HomeHeader from '../Components/HomePage/HomeHeader';
 import OrderCard from '../Components/HomePage/OrderCard';
 import apiService from '../services/apiService';
 import Assignments from '../Driver/Assignments';
+import MyProposals from '../BuyerScreens/MyProposals';
 
 const sortOptions = [
   'Most Recent',
@@ -37,6 +38,9 @@ const Order = () => {
   const [searchText, setSearchText] = useState('');
 
   const { user } = useAppSelector(state => state.auth);
+  const role = (user?.role || '').toLowerCase();
+  const isDriver = role === 'driver';
+  const isBuyer = role === 'buyer';
 
   const handleSelect = (option: string) => {
     setSelectedOption(option);
@@ -48,7 +52,7 @@ const Order = () => {
       setLoading(true);
       setError('');
       // If the logged-in user is a driver, skip fetching seller orders
-      if ((user?.role || '').toLowerCase() === 'driver') {
+      if (isDriver) {
         setOrders([]);
         setLoading(false);
         return;
@@ -91,8 +95,12 @@ const Order = () => {
   }, [orders, selectedOption, searchText]);
 
   // If user is a driver, show driver Assignments UI instead of seller Orders
-  if ((user?.role || '').toLowerCase() === 'driver') {
+  if (isDriver) {
     return <Assignments />;
+  }
+
+  if (isBuyer) {
+    return <MyProposals showBackButton={false} />;
   }
 
   return (

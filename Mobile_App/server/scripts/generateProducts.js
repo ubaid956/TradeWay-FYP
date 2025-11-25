@@ -7,6 +7,13 @@ import { Parser as Json2CsvParser } from 'json2csv';
 
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import {
+  PRODUCT_CATEGORIES,
+  PRODUCT_CATEGORY_VALUES,
+  PRODUCT_FINISH_VALUES,
+  PRODUCT_GRADE_VALUES,
+  PRODUCT_UNIT_VALUES
+} from '../../shared/taxonomy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,8 +45,8 @@ const colors = [
   'Green', 'Gold', 'Ivory'
 ];
 
-const finishes = ['polished', 'honed', 'brushed', 'leathered', 'natural'];
-const grades = ['premium', 'standard', 'commercial'];
+const finishes = PRODUCT_FINISH_VALUES;
+const grades = PRODUCT_GRADE_VALUES;
 
 const baseTags = [
   'flooring', 'countertop', 'tiles', 'blocks',
@@ -47,7 +54,23 @@ const baseTags = [
   'slabs', 'bookmatched'
 ];
 
-const units = ['pieces', 'tons', 'cubic_meters', 'square_meters', 'kg', 'lbs'];
+const units = PRODUCT_UNIT_VALUES;
+
+const categoryPool = PRODUCT_CATEGORY_VALUES.length ? PRODUCT_CATEGORY_VALUES : ['marble'];
+
+const categoryMetaByValue = PRODUCT_CATEGORIES.reduce((acc, category) => {
+  acc[category.value] = category;
+  return acc;
+}, {});
+
+const categoryCoverageCount = categoryPool.length;
+
+const pickCategoryForIndex = (index) => {
+  if (index <= categoryCoverageCount) {
+    return categoryPool[(index - 1) % categoryCoverageCount];
+  }
+  return pickRandom(categoryPool);
+};
 
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randFloat = (min, max, decimals = 2) => {
@@ -103,6 +126,9 @@ const buildProducts = (sellerIds, buyerIds) => {
     const finish = pickRandom(finishes);
     const grade = pickRandom(grades);
     const city = pickRandom(pakistanCities);
+    const category = pickCategoryForIndex(i);
+    const categoryMeta = categoryMetaByValue[category] || { label: category };
+    const readableCategory = categoryMeta.label || category;
 
     const thickness = randFloat(1.5, 3.0);
     const length = randInt(180, 320);
@@ -133,13 +159,19 @@ const buildProducts = (sellerIds, buyerIds) => {
       isActive = Math.random() < 0.7;
     }
 
-    const tags = [...pickRandomSubset(baseTags, 5), color.toLowerCase(), 'sample-dataset'];
+    const tags = Array.from(new Set([
+      ...pickRandomSubset(baseTags, 5),
+      color.toLowerCase(),
+      grade,
+      category,
+      'sample-dataset'
+    ]));
 
     products.push({
       seller: sellerId,
-      title: `${color} ${grade.charAt(0).toUpperCase() + grade.slice(1)} Marble - Pakistan #${i}`,
-      description: `High-quality ${color.toLowerCase()} marble extracted and processed in ${city}, Pakistan. Suitable for flooring, countertops, and premium architectural projects.`,
-      category: 'marble',
+      title: `${color} ${grade.charAt(0).toUpperCase() + grade.slice(1)} ${readableCategory} - Pakistan #${i}`,
+      description: `High-quality ${readableCategory.toLowerCase()} sourced from ${city}, Pakistan with ${finish} finish and ${color.toLowerCase()} tones. ${categoryMeta.description || 'Suitable for modern flooring, countertops, and bespoke architectural work.'}`,
+      category,
       tags,
       price,
       quantity,

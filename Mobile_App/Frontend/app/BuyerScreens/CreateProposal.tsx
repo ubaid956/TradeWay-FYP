@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -16,17 +16,27 @@ import { globalStyles } from '@/Styles/globalStyles';
 import InputField from '../Components/InputFiled';
 import CustomHeader from '../Components/Headers/CustomHeader';
 import { Ionicons } from '@expo/vector-icons';
+import { formatCurrency } from '../utils/currency';
 
 const CreateProposal = () => {
-    const { productId } = useLocalSearchParams();
+    const params = useLocalSearchParams();
+    const getParam = (value: string | string[] | undefined): string | undefined =>
+        Array.isArray(value) ? value[0] : value;
+
+    const productId = getParam(params.productId);
+    const editingBidId = getParam(params.bidId);
+    const initialBidAmount = getParam(params.bidAmount) || '';
+    const initialQuantity = getParam(params.quantity) || '';
+    const initialMessage = getParam(params.message) || '';
+    const isEditMode = Boolean(editingBidId);
     const { token } = useAppSelector(state => state.auth);
 
     const [isLoading, setIsLoading] = useState(false);
     const [product, setProduct] = useState(null);
     const [formData, setFormData] = useState({
-        bidAmount: '',
-        quantity: '',
-        message: '',
+        bidAmount: initialBidAmount,
+        quantity: initialQuantity,
+        message: initialMessage,
     });
     const [errors, setErrors] = useState({});
 
@@ -104,25 +114,33 @@ const CreateProposal = () => {
             return;
         }
 
+        if (!productId) {
+            Alert.alert('Missing product', 'Unable to determine which product this proposal belongs to.');
+            return;
+        }
+
         setIsLoading(true);
 
         try {
-            const proposalData = {
-                productId: productId,
+            const basePayload = {
                 bidAmount: parseFloat(formData.bidAmount),
-                quantity: parseInt(formData.quantity),
+                quantity: parseInt(formData.quantity, 10),
                 message: formData.message.trim() || undefined,
             };
 
-            console.log('Submitting proposal:', proposalData);
-
-            // Use API service for creating proposal
-            const response = await apiService.bids.createBid(proposalData);
+            let response;
+            if (isEditMode && editingBidId) {
+                response = await apiService.bids.updateBid(editingBidId, basePayload);
+            } else {
+                response = await apiService.bids.createBid({ productId, ...basePayload });
+            }
 
             if (response.success) {
                 Alert.alert(
-                    'Proposal Sent!',
-                    'Your proposal has been sent to the seller successfully.',
+                    isEditMode ? 'Proposal updated!' : 'Proposal Sent!',
+                    isEditMode
+                        ? 'Your proposal has been updated successfully.'
+                        : 'Your proposal has been sent to the seller successfully.',
                     [
                         {
                             text: 'OK',
@@ -148,12 +166,14 @@ const CreateProposal = () => {
         router.back();
     };
 
-    const formatPrice = (price) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(price);
-    };
+    const formatPrice = (price) => formatCurrency(price, { fractionDigits: 0 });
+
+    const submitButtonLabel = useMemo(() => {
+        if (isLoading) {
+            return isEditMode ? 'Updating...' : 'Submitting...';
+        }
+        return isEditMode ? 'Update Proposal' : 'Submit Proposal';
+    }, [isEditMode, isLoading]);
 
     if (isLoading && !product) {
         return (
@@ -167,7 +187,7 @@ const CreateProposal = () => {
     return (
         <View style={globalStyles.container}>
             <CustomHeader
-                title="Create Proposal"
+                title={isEditMode ? 'Edit Proposal' : 'Create Proposal'}
                 onBackPress={handleBack}
             />
 
@@ -207,7 +227,7 @@ const CreateProposal = () => {
 
                         {/* Bid Amount */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Bid Amount (USD) *</Text>
+                                <Text style={styles.inputLabel}>Bid Amount (PKR) *</Text>
                             <InputField
                                 placeholder="Enter your bid amount"
                                 icon="cash-outline"
@@ -237,9 +257,9 @@ const CreateProposal = () => {
 
                         {/* Message */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Message *</Text>
+                            <Text style={styles.inputLabel}>Message (Optional)</Text>
                             <InputField
-                                placeholder="Add a message to the seller..."
+                                placeholder="Add a message to the seller (optional)..."
                                 icon="chatbubble-outline"
                                 value={formData.message}
                                 onChangeText={(value) => handleInputChange('message', value)}
@@ -259,9 +279,8 @@ const CreateProposal = () => {
                     {/* Submit Button */}
                     <View style={styles.submitSection}>
                         <CustomButton
-                            title={isLoading ? "Submitting..." : "Submit Proposal"}
+                            title={submitButtonLabel}
                             onPress={handleSubmit}
-
                         />
                     </View>
                 </ScrollView>

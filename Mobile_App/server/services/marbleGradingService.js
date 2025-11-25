@@ -48,14 +48,36 @@ const extractJsonSegment = (text = '') => {
   return text.slice(start, end + 1);
 };
 
-const parseJsonOrThrow = (text = '') => {
-  const attempts = [text, extractJsonSegment(text)].filter((candidate, index, self) => candidate && self.indexOf(candidate) === index);
+const normalizeJsonQuotes = (text = '') =>
+  text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
 
-  for (const candidate of attempts) {
+const stripTrailingCommas = (text = '') =>
+  text
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/,\s*,/g, ',');
+
+const sanitizeJsonCandidate = (text = '') => stripTrailingCommas(normalizeJsonQuotes(text));
+
+const parseJsonOrThrow = (text = '') => {
+  const candidates = [text, extractJsonSegment(text)].filter((candidate, index, self) => candidate && self.indexOf(candidate) === index);
+
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+
     try {
-      return JSON.parse(candidate);
+      return JSON.parse(trimmed);
     } catch (error) {
-      continue;
+      try {
+        const repaired = sanitizeJsonCandidate(trimmed);
+        if (repaired !== trimmed) {
+          return JSON.parse(repaired);
+        }
+      } catch (repairError) {
+        continue;
+      }
     }
   }
 

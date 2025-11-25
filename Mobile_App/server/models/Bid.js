@@ -1,5 +1,16 @@
 import mongoose from "mongoose";
 
+const counterEntrySchema = new mongoose.Schema(
+  {
+    actor: { type: String, enum: ['buyer', 'vendor'], required: true },
+    bidAmount: { type: Number, required: true, min: 0 },
+    quantity: { type: Number, required: true, min: 1 },
+    message: { type: String, trim: true, maxlength: 500 },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
 const bidSchema = new mongoose.Schema({
   bidder: {
     type: mongoose.Schema.Types.ObjectId,
@@ -30,6 +41,20 @@ const bidSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'accepted', 'rejected', 'withdrawn', 'expired'],
     default: 'pending'
+  },
+  awaitingAction: {
+    type: String,
+    enum: ['buyer', 'vendor'],
+    default: 'vendor'
+  },
+  counterHistory: {
+    type: [counterEntrySchema],
+    default: []
+  },
+  agreement: {
+    amount: Number,
+    quantity: Number,
+    confirmedAt: Date
   },
   isHighestBid: {
     type: Boolean,

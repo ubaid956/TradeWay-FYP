@@ -14,6 +14,18 @@ export interface Product {
     unit: string;
     isActive: boolean;
     isSold: boolean;
+    specifications?: {
+        color?: string;
+        finish?: string;
+        thickness?: number;
+        origin?: string;
+        grade?: string;
+        dimensions?: {
+            length?: number;
+            width?: number;
+            height?: number;
+        };
+    };
     availability: {
         isAvailable: boolean;
         availableQuantity: number;
@@ -44,6 +56,7 @@ export interface Product {
         recommendations?: string[];
         completedAt?: string;
         requestedAt?: string;
+        lastError?: string;
     };
 }
 
@@ -92,7 +105,7 @@ const initialState: ProductState = {
 // Async thunks for product operations
 export const fetchProducts = createAsyncThunk(
     'product/fetchProducts',
-    async (filters: any = {}, { rejectWithValue }) => {
+    async (filters: Record<string, any> = {}, { rejectWithValue }) => {
         try {
             const response = await apiService.products.getProducts(filters);
 

@@ -1,5 +1,13 @@
 // models/Product.js
 import mongoose from 'mongoose';
+import {
+  PRODUCT_CATEGORY_VALUES,
+  PRODUCT_UNIT_VALUES,
+  PRODUCT_FINISH_VALUES,
+  PRODUCT_GRADE_VALUES,
+  DEFAULT_PRODUCT_UNIT,
+  DEFAULT_PRODUCT_CATEGORY
+} from '../../shared/taxonomy.js';
 
 const productSchema = new mongoose.Schema({
   seller: {
@@ -21,7 +29,8 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['marble', 'granite', 'limestone', 'travertine', 'onyx', 'quartz', 'other']
+    enum: PRODUCT_CATEGORY_VALUES,
+    default: DEFAULT_PRODUCT_CATEGORY
   },
   tags: [String],
   price: {
@@ -36,8 +45,8 @@ const productSchema = new mongoose.Schema({
   },
   unit: {
     type: String,
-    enum: ['pieces', 'tons', 'cubic_meters', 'square_meters', 'kg', 'lbs'],
-    default: 'pieces'
+    enum: PRODUCT_UNIT_VALUES,
+    default: DEFAULT_PRODUCT_UNIT
   },
   images: [String],
   location: {
@@ -51,7 +60,7 @@ const productSchema = new mongoose.Schema({
   },
   specifications: {
     color: String,
-    finish: { type: String, enum: ['polished', 'honed', 'brushed', 'leathered', 'natural'] },
+    finish: { type: String, enum: PRODUCT_FINISH_VALUES },
     thickness: Number,
     dimensions: {
       length: Number,
@@ -59,7 +68,12 @@ const productSchema = new mongoose.Schema({
       height: Number
     },
     origin: String,
-    grade: { type: String, enum: ['premium', 'standard', 'commercial'] }
+    grade: {
+      type: String,
+      enum: PRODUCT_GRADE_VALUES,
+      lowercase: true,
+      trim: true
+    }
   },
   availability: {
     isAvailable: { type: Boolean, default: true },
@@ -77,7 +91,12 @@ const productSchema = new mongoose.Schema({
       enum: ['not_requested', 'pending', 'completed', 'failed'],
       default: 'not_requested'
     },
-    grade: String,
+    grade: {
+      type: String,
+      enum: [...PRODUCT_GRADE_VALUES, 'reject'],
+      lowercase: true,
+      trim: true
+    },
     confidence: Number,
     summary: String,
     issues: [

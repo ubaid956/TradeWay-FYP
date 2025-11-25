@@ -6,11 +6,13 @@ import {
     acceptBid,
     rejectBid,
     withdrawBid,
+    updateBid,
     getBidStats,
     getBidderStats,
-    getVendorProposals
+    getVendorProposals,
+    counterBid
 } from '../controllers/bidController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, requireRoles } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -18,16 +20,18 @@ const router = express.Router();
 router.use(protect);
 
 // Bidder routes (for buyers)
-router.post('/', createBid); // Create new bid
-router.get('/my-bids', getBidsByBidder); // Get bidder's own bids
-router.get('/my-stats', getBidderStats); // Get bidder's bid statistics
-router.patch('/:bidId/withdraw', withdrawBid); // Withdraw a bid
+router.post('/', requireRoles('buyer'), createBid); // Create new bid
+router.get('/my-bids', requireRoles('buyer'), getBidsByBidder); // Get bidder's own bids
+router.get('/my-stats', requireRoles('buyer'), getBidderStats); // Get bidder's bid statistics
+router.patch('/:bidId', requireRoles('buyer'), updateBid); // Update a pending bid
+router.patch('/:bidId/withdraw', requireRoles('buyer'), withdrawBid); // Withdraw a bid
+router.patch('/:bidId/counter', requireRoles('buyer', 'vendor'), counterBid); // General counter offer
 
 // Seller routes (for product owners)
-router.get('/vendor/proposals', getVendorProposals); // Get all proposals for vendor
-router.get('/product/:productId', getBidsForProduct); // Get bids for a specific product
-router.get('/stats', getBidStats); // Get seller's bid statistics
-router.patch('/:bidId/accept', acceptBid); // Accept a bid
-router.patch('/:bidId/reject', rejectBid); // Reject a bid
+router.get('/vendor/proposals', requireRoles('vendor'), getVendorProposals); // Get all proposals for vendor
+router.get('/product/:productId', requireRoles('vendor'), getBidsForProduct); // Get bids for a specific product
+router.get('/stats', requireRoles('vendor'), getBidStats); // Get seller's bid statistics
+router.patch('/:bidId/accept', requireRoles('vendor'), acceptBid); // Accept a bid
+router.patch('/:bidId/reject', requireRoles('vendor'), rejectBid); // Reject a bid
 
 export default router;

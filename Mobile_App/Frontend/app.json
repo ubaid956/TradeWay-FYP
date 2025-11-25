@@ -75,7 +75,6 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.YOUR_MERCHANT_ID",
           "enableGooglePay": true
         }
       ],
@@ -83,8 +82,9 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24,
             "buildToolsVersion": "34.0.0"
           },
           "kotlinVersion": "1.8.22"
@@ -99,8 +99,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "69d4dec9-6b50-45a1-bd1d-d7e19f146c6e"
+        "projectId": "b2933ba1-73b8-4f81-a078-5e5b1ed9d40d"
       }
-    }
+    },
+    "owner": "dawood2610"
   }
 }

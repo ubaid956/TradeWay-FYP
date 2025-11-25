@@ -21,6 +21,10 @@ const orderSchema = new mongoose.Schema({
         ref: 'Product',
         required: true
     },
+    job: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Job'
+    },
     bid: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Bid',

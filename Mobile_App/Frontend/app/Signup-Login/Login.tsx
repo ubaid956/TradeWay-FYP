@@ -133,7 +133,7 @@ const Login = () => {
             // Success - navigation will be handled by useEffect
             console.log('Login successful via Redux');
         } catch (error) {
-            console.error('Login error:', error);
+            console.warn('Login error (handled):', error);
             Alert.alert(
                 'Login Failed',
                 error || 'Invalid email or password',
