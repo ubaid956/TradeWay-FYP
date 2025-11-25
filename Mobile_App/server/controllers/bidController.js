@@ -79,7 +79,16 @@ export const createBid = async (req, res) => {
             product: productId,
             bidAmount,
             quantity,
-            message: message || ''
+            message: message || '',
+            awaitingAction: 'vendor',
+            counterHistory: [
+                {
+                    actor: 'buyer',
+                    bidAmount,
+                    quantity,
+                    message: message || ''
+                }
+            ]
         });
 
         await bid.save();
@@ -245,6 +254,12 @@ export const acceptBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'accepted';
+        bid.awaitingAction = undefined;
+        bid.agreement = {
+            amount: bid.bidAmount,
+            quantity: bid.quantity,
+            confirmedAt: new Date()
+        };
         bid.sellerResponse = {
             message: req.body.message || 'Bid accepted',
             respondedAt: Date.now()
@@ -364,6 +379,7 @@ export const rejectBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'rejected';
+        bid.awaitingAction = undefined;
         bid.sellerResponse = {
             message: req.body.message || 'Bid rejected',
             respondedAt: Date.now()
@@ -425,6 +441,7 @@ export const withdrawBid = async (req, res) => {
 
         // Update bid status
         bid.status = 'withdrawn';
+        bid.awaitingAction = undefined;
         await bid.save();
 
         res.json({
@@ -443,98 +460,85 @@ export const withdrawBid = async (req, res) => {
     }
 };
 
-// Update a pending bid (bidder action)
-export const updateBid = async (req, res) => {
+export const counterBid = async (req, res) => {
     try {
         const { bidId } = req.params;
-        const { bidAmount, quantity, message } = req.body;
-        const bidderId = req.user._id || req.user.id;
-        const bidderIdStr = bidderId?.toString();
+        const { bidAmount, quantity, message } = req.body || {};
+        const userId = (req.user._id || req.user.id)?.toString();
 
         const bid = await Bid.findById(bidId).populate('product');
         if (!bid) {
-            return res.status(404).json({
-                success: false,
-                message: 'Bid not found'
-            });
-        }
-
-        if (bid.bidder.toString() !== bidderIdStr) {
-            return res.status(403).json({
-                success: false,
-                message: 'Not authorized to update this bid'
-            });
+            return res.status(404).json({ success: false, message: 'Bid not found' });
         }
 
         if (bid.status !== 'pending') {
+            return res.status(400).json({ success: false, message: 'Only pending bids can be negotiated' });
+        }
+
+        if (!Array.isArray(bid.counterHistory)) {
+            bid.counterHistory = [];
+        }
+
+        const bidderId = bid.bidder?.toString();
+        const sellerId = bid.product?.seller?.toString();
+
+        let actor;
+        if (bidderId === userId) actor = 'buyer';
+        else if (sellerId === userId) actor = 'vendor';
+        else return res.status(403).json({ success: false, message: 'Not authorized to modify this bid' });
+
+        if (bid.awaitingAction && bid.awaitingAction !== actor) {
             return res.status(400).json({
                 success: false,
-                message: 'Only pending bids can be updated'
+                message: `Awaiting ${bid.awaitingAction} response before sending another offer`
             });
         }
 
-        const product = bid.product;
-        if (!product || !product.isActive || product.isSold) {
-            return res.status(400).json({
-                success: false,
-                message: 'Product is no longer available for bidding'
-            });
+        const nextAmount = bidAmount ?? bid.bidAmount;
+        const nextQty = quantity ?? bid.quantity;
+
+        if (!nextAmount || nextAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Offer amount must be greater than 0' });
+        }
+        if (!nextQty || nextQty <= 0) {
+            return res.status(400).json({ success: false, message: 'Quantity must be greater than 0' });
         }
 
-        const availableQuantity = product.availability?.availableQuantity ?? product.quantity ?? 0;
-
-        if (bidAmount !== undefined) {
-            if (bidAmount <= 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Bid amount must be greater than 0'
-                });
-            }
-            bid.bidAmount = bidAmount;
+        const availableQuantity = bid.product?.availability?.availableQuantity ?? bid.product?.quantity ?? 0;
+        if (nextQty > availableQuantity) {
+            return res.status(400).json({ success: false, message: 'Quantity exceeds available stock' });
         }
 
-        if (quantity !== undefined) {
-            if (quantity <= 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Quantity must be greater than 0'
-                });
-            }
-
-            if (quantity > availableQuantity) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Requested quantity exceeds available stock'
-                });
-            }
-
-            bid.quantity = quantity;
-        }
-
-        if (message !== undefined) {
+        bid.bidAmount = nextAmount;
+        bid.quantity = nextQty;
+        bid.awaitingAction = actor === 'buyer' ? 'vendor' : 'buyer';
+        bid.counterHistory.push({ actor, bidAmount: nextAmount, quantity: nextQty, message });
+        if (actor === 'vendor') {
+            bid.sellerResponse = {
+                message: message || 'Vendor countered the offer',
+                respondedAt: Date.now()
+            };
+        } else if (message) {
             bid.message = message;
         }
 
         await bid.save();
         await bid.populate([
             { path: 'product', select: 'title price images seller location' },
-            { path: 'bidder', select: 'name email phone' }
+            { path: 'bidder', select: 'name email phone location' }
         ]);
 
-        res.json({
-            success: true,
-            message: 'Bid updated successfully',
-            data: bid
-        });
-
+        return res.json({ success: true, message: 'Counter offer recorded', data: bid });
     } catch (error) {
-        console.error('Update bid error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error updating bid',
-            error: error.message
-        });
+        console.error('Counter bid error:', error);
+        return res.status(500).json({ success: false, message: 'Error recording counter offer', error: error.message });
     }
+};
+
+// Update a pending bid (bidder action)
+export const updateBid = async (req, res) => {
+    // Backward compatibility: treat buyer updates as counter offers
+    return counterBid(req, res);
 };
 
 // Get all proposals for vendor (across all their products)

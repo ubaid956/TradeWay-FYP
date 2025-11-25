@@ -1,9 +1,9 @@
 import { View, Text, Dimensions, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import ProductCard from '../Components/HomePage/FeatureCard';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchSellerProducts } from '../store/slices/productSlice';
+import { fetchSellerProducts, deleteProduct, Product } from '../store/slices/productSlice';
 import { Picker } from '@react-native-picker/picker';
 
 import HomeHeader from '../Components/HomePage/HomeHeader';
@@ -45,6 +45,16 @@ const contactOptions = [
   { label: 'Any', value: 'any' },
 ];
 
+const FALLBACK_PRODUCT_IMAGE = require('../../assets/images/home/featureCard.png');
+
+type GradingBadge = {
+  label: string;
+  color: string;
+  background: string;
+  icon: ComponentProps<typeof Ionicons>['name'];
+  helperText?: string;
+};
+
 const statusPills: Record<string, { label: string; color: string; background: string }> = {
   open: { label: 'Open', color: '#0F8B5F', background: '#E6F7F0' },
   in_progress: { label: 'In Progress', color: '#815AC0', background: '#F0E9FB' },
@@ -74,6 +84,8 @@ const Post = () => {
   const [isDropdownVisible, setDropdownVisible] = useState(false);
   const [requirementForm, setRequirementForm] = useState(initialRequirementForm);
   const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   const role = (user?.role || '').toLowerCase();
   const isDriver = role === 'driver';
@@ -107,8 +119,105 @@ const Post = () => {
   const handleSelect = (option: string) => {
     setSelectedOption(option);
     setDropdownVisible(false);
-    // Trigger sorting logic here (e.g., API fetch or list sort)
   };
+
+  const handleEditProduct = (productId: string) => {
+    router.push({ pathname: '/VendorScreens/CreatePost', params: { productId } });
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      setDeletingProductId(productId);
+      await dispatch(deleteProduct(productId)).unwrap();
+      await dispatch(fetchSellerProducts());
+    } catch (error: any) {
+      Alert.alert('Deletion failed', error?.message || 'Unable to delete this product right now.');
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
+
+  const confirmDeleteProduct = (product: Product) => {
+    Alert.alert(
+      'Delete listing?',
+      'This will hide the listing from buyers. You can always repost later.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteProduct(product._id)
+        }
+      ]
+    );
+  };
+
+  const productSnapshot = useMemo(() => {
+    return userProducts.reduce(
+      (snapshot, product) => {
+        if (product.isActive) {
+          snapshot.active += 1;
+        } else {
+          snapshot.paused += 1;
+        }
+
+        const gradingStatus = (product.grading?.status || 'not_requested').toLowerCase();
+        const grade = (product.grading?.grade || product.specifications?.grade || '').toLowerCase();
+
+        if (gradingStatus === 'pending') {
+          snapshot.pendingGrading += 1;
+        }
+
+        if (gradingStatus === 'failed' || grade === 'reject') {
+          snapshot.needsAttention += 1;
+        }
+
+        return snapshot;
+      },
+      { active: 0, paused: 0, pendingGrading: 0, needsAttention: 0 }
+    );
+  }, [userProducts]);
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filtered = normalizedQuery
+      ? userProducts.filter((product) => {
+          const haystack = [
+            product.title,
+            product.description,
+            product.location,
+            product.category,
+            product.specifications?.grade,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          return haystack.includes(normalizedQuery);
+        })
+      : [...userProducts];
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      const getTime = (value?: string) => (value ? new Date(value).getTime() : 0);
+      switch (selectedOption) {
+        case 'Oldest First':
+          return getTime(a.createdAt) - getTime(b.createdAt);
+        case 'Price: High to Low':
+          return (b.price || 0) - (a.price || 0);
+        case 'Price: Low to High':
+          return (a.price || 0) - (b.price || 0);
+        case 'Most Recent':
+        default:
+          return getTime(b.createdAt) - getTime(a.createdAt);
+      }
+    });
+
+    return sorted;
+  }, [userProducts, selectedOption, searchQuery]);
+
+  const totalProductsCount = pagination?.totalProducts ?? userProducts.length;
+  const visibleProductsCount = filteredProducts.length;
   const requirementSummary = useMemo(() => {
     const summary = {
       open: 0,
@@ -239,9 +348,57 @@ const Post = () => {
     );
   };
 
+  const getGradingBadge = (product: Product): GradingBadge => {
+    const gradingStatus = (product.grading?.status || 'not_requested').toLowerCase();
+    const grade = (product.grading?.grade || product.specifications?.grade || '').toLowerCase();
+    const hasIssues = gradingStatus === 'failed' || grade === 'reject';
+
+    if (hasIssues) {
+      return {
+        label: 'Needs attention',
+        color: '#B42318',
+        background: '#FEE2E2',
+        icon: 'warning-outline',
+        helperText: product.grading?.issues?.[0]?.label || product.grading?.lastError || 'Review AI findings',
+      };
+    }
+
+    if (gradingStatus === 'pending') {
+      return {
+        label: 'AI grading pending',
+        color: '#92400E',
+        background: '#FEF3C7',
+        icon: 'time-outline',
+        helperText: 'Queued for automated review',
+      };
+    }
+
+    if (gradingStatus === 'completed') {
+      return {
+        label: grade ? `Grade ${grade.toUpperCase()}` : 'AI grading ready',
+        color: '#065F46',
+        background: '#DCFCE7',
+        icon: 'shield-checkmark',
+        helperText: product.grading?.summary,
+      };
+    }
+
+    return {
+      label: 'Grading not requested',
+      color: '#475569',
+      background: '#E5E7EB',
+      icon: 'help-circle-outline',
+      helperText: 'Run AI grading to boost buyer trust',
+    };
+  };
+
+  const handleRequirementCta = () => {
+    router.push('/BuyerScreens/MyProposals');
+  };
+
   const renderVendorContent = () => (
     <View style={styles.mainContainer}>
-      <HomeHeader title="My Products" profile />
+      <HomeHeader title="My Products" placeholder="Search your catalog" orders={false} profile />
 
       <SearchBar
         style={{
@@ -257,62 +414,95 @@ const Post = () => {
           elevation: 5,
           marginTop: 10,
         }}
-        value={''}
-        fontColor="#c6c6c6"
-        iconColor="#c6c6c6"
-        shadowColor="grey"
-        cancelIconColor="#c6c6c6"
-        backgroundColor="white"
+        value={searchQuery}
         placeholder="Search products"
-        clearIconComponent
-        onPress={() => alert('onPress')}
+        onChangeText={setSearchQuery}
+        onClearPress={() => setSearchQuery('')}
       />
 
-      <View style={styles.contentContainer}>
-        <View style={styles.headerRow}>
-          <Text style={styles.productsCount}>{pagination.totalProducts} Products Found</Text>
-          <View style={styles.container}>
-            <TouchableOpacity
-              style={styles.dropdownToggle}
-              onPress={() => setDropdownVisible(!isDropdownVisible)}
-            >
-              <Ionicons name="swap-vertical" size={18} color="#4B5563" />
-              <Text style={styles.dropdownText}>{selectedOption}</Text>
-              <Ionicons
-                name={isDropdownVisible ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color="#4B5563"
-              />
-            </TouchableOpacity>
-
-            {isDropdownVisible && (
-              <View style={styles.dropdown}>
-                {sortOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    onPress={() => handleSelect(option)}
-                    style={styles.option}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        option === selectedOption && styles.selectedText,
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+      <ScrollView
+        style={styles.vendorScroll}
+        contentContainerStyle={styles.vendorScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.vendorInsightsCard}>
+          <View style={styles.vendorInsightsHeader}>
+            <Text style={styles.sectionTitle}>Portfolio snapshot</Text>
+            <Text style={styles.sectionSubtle}>{totalProductsCount} total listings</Text>
           </View>
+          <View style={styles.vendorInsightsRow}>
+            <View style={[styles.vendorSummaryCard, { borderColor: '#0F8B5F' }]}>
+              <Text style={styles.summaryLabel}>Live</Text>
+              <Text style={styles.summaryValue}>{productSnapshot.active}</Text>
+            </View>
+            <View style={[styles.vendorSummaryCard, { borderColor: '#6B7280' }]}>
+              <Text style={styles.summaryLabel}>Paused</Text>
+              <Text style={styles.summaryValue}>{productSnapshot.paused}</Text>
+            </View>
+            <View style={[styles.vendorSummaryCard, { borderColor: '#C2410C' }]}>
+              <Text style={styles.summaryLabel}>Grading</Text>
+              <Text style={styles.summaryValue}>{productSnapshot.pendingGrading}</Text>
+            </View>
+            <View style={[styles.vendorSummaryCard, { borderColor: '#B42318' }]}>
+              <Text style={styles.summaryLabel}>Needs attention</Text>
+              <Text style={styles.summaryValue}>{productSnapshot.needsAttention}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.requirementHubCard} onPress={handleRequirementCta}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.requirementHubTitle}>Looking for buyers?</Text>
+              <Text style={styles.requirementHubSubtitle}>
+                Jump to the requirements hub to see buyer requests and follow up on proposals.
+              </Text>
+            </View>
+            <View style={styles.requirementHubButton}>
+              <Text style={styles.requirementHubButtonText}>Open</Text>
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.contentContainer}>
+          <View style={styles.headerRow}>
+            <Text style={styles.productsCount}>{visibleProductsCount} Products Found</Text>
+            <View style={styles.container}>
+              <TouchableOpacity
+                style={styles.dropdownToggle}
+                onPress={() => setDropdownVisible(!isDropdownVisible)}
+              >
+                <Ionicons name="swap-vertical" size={18} color="#4B5563" />
+                <Text style={styles.dropdownText}>{selectedOption}</Text>
+                <Ionicons
+                  name={isDropdownVisible ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color="#4B5563"
+                />
+              </TouchableOpacity>
+
+              {isDropdownVisible && (
+                <View style={styles.dropdown}>
+                  {sortOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      onPress={() => handleSelect(option)}
+                      style={styles.option}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          option === selectedOption && styles.selectedText,
+                        ]}
+                      >
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#0758C2" />
@@ -324,38 +514,109 @@ const Post = () => {
                 Error loading products: {error}
               </Text>
             </View>
-          ) : userProducts.length > 0 ? (
-            userProducts.map((product) => {
+          ) : filteredProducts.length > 0 ? (
+            filteredProducts.map((product) => {
               const imageSource = product.images && product.images.length > 0
                 ? { uri: product.images[0] }
-                : require('../../assets/images/home/featureCard.png');
+                : FALLBACK_PRODUCT_IMAGE;
+              const availableQuantity = product.availability?.availableQuantity ?? product.quantity ?? 0;
+              const unitLabel = product.unit || 'units';
+              const gradingBadge = getGradingBadge(product);
+              const updatedLabel = product.updatedAt ? new Date(product.updatedAt).toLocaleDateString() : null;
 
               return (
-                <ProductCard
-                  key={product._id}
-                  image={imageSource}
-                  title={product.title}
-                  description={product.description}
-                  price={product.price.toString()}
-                  location={product.location}
-                  availability={product.availability?.availableQuantity?.toString() || "0"}
-                  verified={true}
-                  onViewDetails={() => console.log("View Details for", product._id)}
-                  isFavorite={false}
-                  onToggleFavorite={() => console.log("Toggle favorite for", product._id)}
-                  grade={product.specifications?.grade ?? product.grading?.grade ?? null}
-                />
+                <View key={product._id} style={styles.vendorCardWrapper}>
+                  <ProductCard
+                    id={product._id}
+                    image={imageSource}
+                    title={product.title}
+                    description={product.description}
+                    price={product.price?.toString() || '0'}
+                    location={product.location}
+                    availability={availableQuantity}
+                    verified={product.grading?.status === 'completed'}
+                    onViewDetails={() => router.push(`/Product_Pages/ViewProduct?productId=${product._id}`)}
+                    isFavorite={false}
+                    onToggleFavorite={() => console.log('Toggle favorite for', product._id)}
+                    grade={product.specifications?.grade ?? product.grading?.grade ?? null}
+                    compact
+                    style={styles.vendorProductCard}
+                  />
+                  <View style={styles.productMetaRow}>
+                    <View
+                      style={[
+                        styles.productChip,
+                        product.isActive ? styles.productChipSuccess : styles.productChipMuted,
+                      ]}
+                    >
+                      <Ionicons
+                        name={product.isActive ? 'checkmark-circle' : 'pause-circle'}
+                        size={14}
+                        color="#fff"
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={styles.productChipText}>
+                        {product.isActive ? 'Active' : 'Paused'}
+                      </Text>
+                    </View>
+                    <View style={styles.productChipOutline}>
+                      <Ionicons name="cube-outline" size={14} color="#1F2937" style={{ marginRight: 6 }} />
+                      <Text style={styles.productChipOutlineText}>{`${availableQuantity} ${unitLabel}`}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.productMetaRow}>
+                    <View style={[styles.productChipWide, { backgroundColor: gradingBadge.background }]}>
+                      <Ionicons
+                        name={gradingBadge.icon}
+                        size={14}
+                        color={gradingBadge.color}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.productChipWideText, { color: gradingBadge.color }]}>
+                        {gradingBadge.label}
+                      </Text>
+                    </View>
+                    {updatedLabel ? (
+                      <Text style={styles.productMetaHelper}>Updated {updatedLabel}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.productActionsRow}>
+                    <TouchableOpacity
+                      style={styles.productActionButton}
+                      onPress={() => handleEditProduct(product._id)}
+                    >
+                      <Ionicons name="create-outline" size={16} color="#0758C2" style={{ marginRight: 6 }} />
+                      <Text style={styles.productActionText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.productActionButton, styles.productActionDanger]}
+                      onPress={() => confirmDeleteProduct(product)}
+                      disabled={deletingProductId === product._id}
+                    >
+                      {deletingProductId === product._id ? (
+                        <ActivityIndicator size="small" color="#B42318" style={{ marginRight: 6 }} />
+                      ) : (
+                        <Ionicons name="trash-outline" size={16} color="#B42318" style={{ marginRight: 6 }} />
+                      )}
+                      <Text style={styles.productActionDangerText}>
+                        {deletingProductId === product._id ? 'Removing…' : 'Delete'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               );
             })
           ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
-                No products found. Start by creating your first product!
+                {searchQuery
+                  ? 'No products matched your search. Try a different keyword.'
+                  : 'No products found. Start by creating your first product!'}
               </Text>
             </View>
           )}
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/VendorScreens/CreatePost')}>
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
@@ -462,7 +723,7 @@ const Post = () => {
     const renderBuyerContent = () => (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.buyerScrollContent}>
-          <HomeHeader title="Requirement Posting" profile />
+          <HomeHeader title="Requirement Posting" placeholder="Search requirements" orders={false} profile />
 
           <View style={styles.cardContainer}>
             <Text style={styles.sectionTitle}>{editingRequirementId ? 'Edit Requirement' : 'Post a Requirement'}</Text>
@@ -641,6 +902,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  vendorScroll: {
+    flex: 1,
+    marginTop: height * 0.02,
+  },
+  vendorScrollContent: {
+    paddingBottom: 120,
+    alignItems: 'center',
+  },
   buyerScrollContent: {
     paddingBottom: 60,
     backgroundColor: '#f8f9fa',
@@ -663,10 +932,9 @@ const styles = StyleSheet.create({
   },
 
   contentContainer: {
-    flex: 1,
-    marginTop: height * 0.02,
     width: width * 0.9,
-    marginHorizontal: width * 0.05,
+    marginTop: height * 0.02,
+    alignSelf: 'center',
   },
   headerRow: {
     flexDirection: 'row',
@@ -1021,5 +1289,157 @@ const styles = StyleSheet.create({
   selectedText: {
     color: '#2563eb',
     fontWeight: 'bold',
+  },
+  vendorInsightsCard: {
+    backgroundColor: '#fff',
+    width: width * 0.9,
+    alignSelf: 'center',
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 18,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  vendorInsightsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  vendorInsightsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  vendorSummaryCard: {
+    width: '47%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  requirementHubCard: {
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#F0F7FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  requirementHubTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  requirementHubSubtitle: {
+    fontSize: 13,
+    color: '#1D4ED8',
+    marginTop: 2,
+  },
+  requirementHubButton: {
+    backgroundColor: '#0758C2',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  requirementHubButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  vendorCardWrapper: {
+    marginBottom: 18,
+  },
+  vendorProductCard: {
+    marginVertical: 0,
+  },
+  productMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 10,
+  },
+  productChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  productChipSuccess: {
+    backgroundColor: '#10B981',
+  },
+  productChipMuted: {
+    backgroundColor: '#9CA3AF',
+  },
+  productChipText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  productChipOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  productChipOutlineText: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  productChipWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flex: 1,
+  },
+  productChipWideText: {
+    fontWeight: '600',
+  },
+  productMetaHelper: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  productActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 10,
+  },
+  productActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  productActionText: {
+    color: '#0758C2',
+    fontWeight: '600',
+  },
+  productActionDanger: {
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+  },
+  productActionDangerText: {
+    color: '#B42318',
+    fontWeight: '600',
   },
 });

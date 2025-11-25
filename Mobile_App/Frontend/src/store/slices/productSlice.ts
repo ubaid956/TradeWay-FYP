@@ -14,6 +14,18 @@ export interface Product {
     unit: string;
     isActive: boolean;
     isSold: boolean;
+    specifications?: {
+        color?: string;
+        finish?: string;
+        thickness?: number;
+        origin?: string;
+        grade?: string;
+        dimensions?: {
+            length?: number;
+            width?: number;
+            height?: number;
+        };
+    };
     availability: {
         isAvailable: boolean;
         availableQuantity: number;
@@ -44,6 +56,7 @@ export interface Product {
         recommendations?: string[];
         completedAt?: string;
         requestedAt?: string;
+        lastError?: string;
     };
 }
 

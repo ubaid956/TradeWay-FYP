@@ -19,18 +19,20 @@ const getEnvironment = (): 'development' | 'staging' | 'production' => {
     return 'production';
 };
 
+const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+
 // API URLs for different environments
 const API_URLS = {
-    development: 'https://5w64q84c-5000.inc1.devtunnels.ms/api',
-    staging: 'https://your-staging-api.com/api',
-    production: 'https://your-production-api.com/api',
+    development: envBaseUrl || 'http://192.168.0.100:5000/api',
+    staging: envBaseUrl || 'https://staging-tradeway.example.com/api',
+    production: envBaseUrl || 'https://api.tradeway.com/api',
 };
 
-// Local development URLs (for testing)
+// Local development URLs (fallback/testing)
 const LOCAL_URLS = {
-    development: 'http://localhost:3000/api',
-    staging: 'http://localhost:3001/api',
-    production: 'http://localhost:3002/api',
+    development: envBaseUrl || 'http://localhost:5000/api',
+    staging: envBaseUrl || 'http://localhost:5001/api',
+    production: envBaseUrl || 'http://localhost:5002/api',
 };
 
 // Get current environment
@@ -120,6 +122,7 @@ export const API_ENDPOINTS = {
 
     // Bids/Proposals
     BIDS: {
+        ROOT: '/bids',
         LIST: '/bids',
         CREATE: '/bids',
         UPDATE: '/bids',
@@ -131,6 +134,7 @@ export const API_ENDPOINTS = {
         ACCEPT: '/bids',
         REJECT: '/bids',
         WITHDRAW: '/bids',
+        COUNTER: '/bids',
         STATS: '/bids/stats',
     },
 
@@ -172,12 +176,18 @@ export const API_ENDPOINTS = {
 
     // Jobs
     JOBS: {
+        ROOT: '/jobs',
         LIST: '/jobs',
         CREATE: '/jobs',
         UPDATE: '/jobs',
         DELETE: '/jobs',
         BY_USER: '/jobs/user',
         APPLY: '/jobs/apply',
+        VENDOR: '/jobs/vendor',
+        DRIVER: '/jobs/driver',
+        DETAIL: '/jobs',
+        ASSIGN: '/jobs',
+        STATUS: '/jobs',
     },
 };
 

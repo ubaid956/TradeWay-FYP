@@ -1,7 +1,7 @@
 // API Service Layer
 // Centralized API service for making HTTP requests
 
-import { activeApiConfig, buildApiUrl, getAuthHeaders, getUploadHeaders, API_ENDPOINTS } from '../config/api';
+import { activeApiConfig, buildApiUrl, getAuthHeaders, getUploadHeaders, API_ENDPOINTS } from '../src/config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types for API responses
@@ -86,6 +86,53 @@ export interface Requirement {
     tags?: string[];
     createdAt: string;
     updatedAt: string;
+}
+
+export interface CounterOfferPayload {
+    bidAmount?: number;
+    quantity?: number;
+    message?: string;
+}
+
+export interface JobLocationPayload {
+    label?: string;
+    address?: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
+    instructions?: string;
+}
+
+export interface JobContactPayload {
+    name?: string;
+    phone?: string;
+    notes?: string;
+}
+
+export interface CargoDetailsPayload {
+    weight?: number;
+    unit?: string;
+    dimensions?: string;
+    cargoType?: string;
+    notes?: string;
+}
+
+export interface CreateJobPayload {
+    orderId?: string;
+    productId?: string;
+    buyerId?: string;
+    origin?: JobLocationPayload;
+    destination?: JobLocationPayload;
+    pickupContact?: JobContactPayload;
+    deliveryContact?: JobContactPayload;
+    cargoDetails?: CargoDetailsPayload;
+    price?: number;
+    notes?: string;
+}
+
+export interface JobStatusUpdatePayload {
+    status: 'open' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
+    notes?: string;
 }
 
 export interface RequirementPayload {
@@ -680,6 +727,13 @@ export const bidsApi = {
             method: 'PATCH',
         });
     },
+    // Counter offer (buyer or vendor depending on awaitingAction)
+    counterOffer: async (bidId: string, payload: CounterOfferPayload): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.BIDS.COUNTER}/${bidId}/counter`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+    },
     // Update a pending bid
     updateBid: async (
         bidId: string,
@@ -764,6 +818,43 @@ export const ordersApi = {
     },
 };
 
+// Cargo jobs API calls
+export const jobsApi = {
+    createJob: async (payload: CreateJobPayload): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(API_ENDPOINTS.JOBS.CREATE, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+    getVendorJobs: async (status?: string): Promise<ApiResponse<any>> => {
+        const query = new URLSearchParams();
+        if (status) {
+            query.append('status', status);
+        }
+        const suffix = query.toString() ? `?${query}` : '';
+        return authenticatedRequest<any>(`${API_ENDPOINTS.JOBS.VENDOR}${suffix}`);
+    },
+    getDriverJobs: async (includeAssigned = true): Promise<ApiResponse<any>> => {
+        const query = `?includeAssigned=${includeAssigned}`;
+        return authenticatedRequest<any>(`${API_ENDPOINTS.JOBS.DRIVER}${query}`);
+    },
+    getJobById: async (jobId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.JOBS.DETAIL}/${jobId}`);
+    },
+    assignJob: async (jobId: string, notes?: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.JOBS.ASSIGN}/${jobId}/assign`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
+        });
+    },
+    updateJobStatus: async (jobId: string, payload: JobStatusUpdatePayload): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.JOBS.STATUS}/${jobId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+    },
+};
+
 // Recommendations API calls
 export interface RecommendationItem {
     productId: string;
@@ -834,6 +925,7 @@ export const apiService = {
     kyc: kycApi,
     bids: bidsApi,
     orders: ordersApi,
+    jobs: jobsApi,
     recommendations: recommendationsApi,
     requirements: requirementsApi,
     grading: gradingApi,

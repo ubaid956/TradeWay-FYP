@@ -10,6 +10,8 @@ import {
     Image,
     Dimensions,
     RefreshControl,
+    Modal,
+    TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -23,6 +25,16 @@ import { formatCurrency } from '../utils/currency';
 const { width, height } = Dimensions.get('window');
 
 type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+
+type CounterActor = 'buyer' | 'vendor';
+
+interface CounterEntry {
+    actor: CounterActor;
+    bidAmount: number;
+    quantity: number;
+    message?: string;
+    createdAt?: string;
+}
 
 interface Proposal {
     _id: string;
@@ -44,6 +56,13 @@ interface Proposal {
     message?: string;
     status: ProposalStatus;
     createdAt: string;
+    awaitingAction?: CounterActor;
+    counterHistory?: CounterEntry[];
+    agreement?: {
+        amount?: number;
+        quantity?: number;
+        confirmedAt?: string;
+    };
     sellerResponse?: {
         message?: string;
         respondedAt?: string;
@@ -57,6 +76,11 @@ const statusColors = {
     withdrawn: { bg: '#E5E7EB', text: '#6B7280', icon: 'remove-circle' },
 };
 
+const formatActorLabel = (actor?: CounterActor) => {
+    if (!actor) return 'Buyer';
+    return actor === 'vendor' ? 'You' : 'Buyer';
+};
+
 const VendorProposals = () => {
     const { token, user } = useAppSelector(state => state.auth);
     const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -64,6 +88,12 @@ const VendorProposals = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<ProposalStatus | 'all'>('all');
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [showCounterModal, setShowCounterModal] = useState(false);
+    const [activeCounterProposal, setActiveCounterProposal] = useState<Proposal | null>(null);
+    const [counterAmount, setCounterAmount] = useState('');
+    const [counterQuantity, setCounterQuantity] = useState('');
+    const [counterMessage, setCounterMessage] = useState('');
+    const [counterSubmitting, setCounterSubmitting] = useState(false);
 
     const fetchProposals = useCallback(async (status?: string) => {
         try {
@@ -160,6 +190,67 @@ const VendorProposals = () => {
                 },
             ]
         );
+    };
+
+    const openCounterModal = (proposal: Proposal) => {
+        const history = proposal.counterHistory || [];
+        const lastEntry = history.length ? history[history.length - 1] : null;
+        setActiveCounterProposal(proposal);
+        setCounterAmount((lastEntry?.bidAmount || proposal.bidAmount).toString());
+        setCounterQuantity((lastEntry?.quantity || proposal.quantity).toString());
+        setCounterMessage('');
+        setShowCounterModal(true);
+    };
+
+    const closeCounterModal = () => {
+        setShowCounterModal(false);
+        setActiveCounterProposal(null);
+        setCounterAmount('');
+        setCounterQuantity('');
+        setCounterMessage('');
+        setCounterSubmitting(false);
+    };
+
+    const submitCounterOffer = async () => {
+        if (!activeCounterProposal) return;
+        if (!counterAmount || !counterQuantity) {
+            Alert.alert('Missing fields', 'Please provide both amount and quantity for the counter offer.');
+            return;
+        }
+
+        const amount = Number(counterAmount);
+        const qty = Number(counterQuantity);
+        if (Number.isNaN(amount) || Number.isNaN(qty) || amount <= 0 || qty <= 0) {
+            Alert.alert('Invalid values', 'Amount and quantity must be positive numbers.');
+            return;
+        }
+
+        try {
+            setCounterSubmitting(true);
+            const response = await apiService.bids.counterOffer(activeCounterProposal._id, {
+                bidAmount: amount,
+                quantity: qty,
+                message: counterMessage,
+            });
+
+            if (response.success) {
+                Alert.alert('Counter sent', 'Your counter offer has been shared with the buyer.', [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            closeCounterModal();
+                            fetchProposals(filter === 'all' ? undefined : filter);
+                        }
+                    }
+                ]);
+            } else {
+                throw new Error(response.error || 'Failed to send counter offer');
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to send counter offer');
+        } finally {
+            setCounterSubmitting(false);
+        }
     };
 
     const formatDate = (dateString: string) => {
@@ -314,6 +405,51 @@ const VendorProposals = () => {
                                     </Text>
                                 </View>
 
+                                {proposal.awaitingAction && proposal.status === 'pending' && (
+                                    <Text style={styles.awaitingText}>
+                                        {proposal.awaitingAction === 'vendor'
+                                            ? 'Awaiting your response'
+                                            : 'Waiting for buyer response'}
+                                    </Text>
+                                )}
+
+                                {proposal.agreement && proposal.status === 'accepted' && (
+                                    <View style={styles.agreementBanner}>
+                                        <Text style={styles.agreementTitle}>Agreed Terms</Text>
+                                        <Text style={styles.agreementText}>
+                                            {formatPrice(proposal.agreement.amount || proposal.bidAmount)} ·
+                                            Qty {proposal.agreement.quantity || proposal.quantity}
+                                        </Text>
+                                    </View>
+                                )}
+
+                                {proposal.counterHistory && proposal.counterHistory.length > 1 && (
+                                    <View style={styles.historyContainer}>
+                                        <Text style={styles.sectionTitle}>Negotiation History</Text>
+                                        {proposal.counterHistory.map((entry, idx) => (
+                                            <View key={`${proposal._id}-history-${idx}`} style={styles.historyRow}>
+                                                <View style={styles.historyBadge}>
+                                                    <Text style={styles.historyBadgeText}>
+                                                        {formatActorLabel(entry.actor)}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.historyAmount}>{formatPrice(entry.bidAmount)}</Text>
+                                                    <Text style={styles.historyMeta}>
+                                                        Qty {entry.quantity}
+                                                        {entry.createdAt
+                                                            ? ` • ${formatDate(entry.createdAt)}`
+                                                            : ''}
+                                                    </Text>
+                                                    {entry.message ? (
+                                                        <Text style={styles.historyMessage}>{entry.message}</Text>
+                                                    ) : null}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+
                                 {/* Actions */}
                                 {proposal.status === 'pending' && (
                                     <View style={styles.actionsContainer}>
@@ -334,6 +470,15 @@ const VendorProposals = () => {
                                     </View>
                                 )}
 
+                                {proposal.status === 'pending' && proposal.awaitingAction === 'vendor' && (
+                                    <TouchableOpacity
+                                        style={styles.secondaryAction}
+                                        onPress={() => openCounterModal(proposal)}
+                                    >
+                                        <Text style={styles.secondaryActionText}>Send Counter Offer</Text>
+                                    </TouchableOpacity>
+                                )}
+
                                 {proposal.status === 'accepted' && proposal.sellerResponse?.message && (
                                     <View style={styles.responseContainer}>
                                         <Text style={styles.responseLabel}>Your Response:</Text>
@@ -342,11 +487,91 @@ const VendorProposals = () => {
                                         </Text>
                                     </View>
                                 )}
+
+                                {proposal.status === 'accepted' && (
+                                    <TouchableOpacity
+                                        style={styles.secondaryAction}
+                                        onPress={() =>
+                                            router.push({
+                                                pathname: '/VendorScreens/CreateCargo',
+                                                params: {
+                                                    productId: proposal.product._id,
+                                                    buyerId: proposal.bidder._id,
+                                                    bidId: proposal._id,
+                                                },
+                                            })
+                                        }
+                                    >
+                                        <Text style={styles.secondaryActionText}>Create Cargo Job</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         );
                     })
                 )}
             </ScrollView>
+
+            <Modal
+                visible={showCounterModal}
+                transparent
+                animationType="slide"
+                onRequestClose={closeCounterModal}
+            >
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Counter Offer</Text>
+                        <Text style={styles.modalSubtitle}>
+                            {activeCounterProposal?.bidder.name}
+                        </Text>
+
+                        <Text style={styles.modalLabel}>Offer Amount</Text>
+                        <TextInput
+                            value={counterAmount}
+                            onChangeText={setCounterAmount}
+                            keyboardType="numeric"
+                            placeholder="Enter counter amount"
+                            style={styles.modalInput}
+                        />
+
+                        <Text style={styles.modalLabel}>Quantity</Text>
+                        <TextInput
+                            value={counterQuantity}
+                            onChangeText={setCounterQuantity}
+                            keyboardType="numeric"
+                            placeholder="Quantity"
+                            style={styles.modalInput}
+                        />
+
+                        <Text style={styles.modalLabel}>Message (optional)</Text>
+                        <TextInput
+                            value={counterMessage}
+                            onChangeText={setCounterMessage}
+                            placeholder="Add a short note"
+                            style={[styles.modalInput, { height: 90 }]}
+                            multiline
+                        />
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalCancelButton]}
+                                onPress={closeCounterModal}
+                                disabled={counterSubmitting}
+                            >
+                                <Text style={styles.modalCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalPrimaryButton]}
+                                onPress={submitCounterOffer}
+                                disabled={counterSubmitting}
+                            >
+                                <Text style={styles.modalPrimaryText}>
+                                    {counterSubmitting ? 'Sending…' : 'Send Counter'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -397,6 +622,26 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#6b7280',
         marginTop: 8,
+    },
+    awaitingText: {
+        marginTop: 10,
+        color: '#92400E',
+        fontWeight: '500',
+    },
+    agreementBanner: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: '#ECFDF5',
+    },
+    agreementTitle: {
+        fontWeight: '600',
+        fontSize: 14,
+        color: '#065F46',
+    },
+    agreementText: {
+        marginTop: 4,
+        color: '#047857',
     },
     proposalCard: {
         backgroundColor: '#fff',
@@ -452,10 +697,65 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginLeft: 4,
         textTransform: 'capitalize',
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#111827',
+        marginBottom: 8,
+    },
+    historyContainer: {
+        marginTop: 16,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+        gap: 12,
+    },
+    historyRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    historyBadge: {
+        backgroundColor: '#E0E7FF',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        alignSelf: 'flex-start',
+    },
+    historyBadgeText: {
+        color: '#3730A3',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    historyAmount: {
+        fontWeight: '700',
+        color: '#111827',
+    },
+    historyMeta: {
+        fontSize: 12,
+        color: '#6b7280',
+        marginTop: 2,
+    },
+    historyMessage: {
+        fontSize: 13,
+        color: '#374151',
+        marginTop: 4,
+    },
     },
     productInfo: {
         marginBottom: height * 0.015,
         paddingBottom: height * 0.015,
+    secondaryAction: {
+        marginTop: 12,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        alignItems: 'center',
+    },
+    secondaryActionText: {
+        color: '#0758C2',
+        fontWeight: '600',
+    },
         borderBottomWidth: 1,
         borderBottomColor: '#e5e7eb',
     },
@@ -468,6 +768,68 @@ const styles = StyleSheet.create({
     productPrice: {
         fontSize: 14,
         color: '#6b7280',
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalCard: {
+        width: '100%',
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 20,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    modalSubtitle: {
+        color: '#6b7280',
+        marginBottom: 16,
+    },
+    modalLabel: {
+        color: '#4b5563',
+        fontWeight: '600',
+        marginTop: 10,
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 10,
+        padding: 12,
+        marginTop: 6,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 20,
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    modalCancelButton: {
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        backgroundColor: '#fff',
+    },
+    modalPrimaryButton: {
+        backgroundColor: '#0758C2',
+    },
+    modalCancelText: {
+        color: '#374151',
+        fontWeight: '600',
+    },
+    modalPrimaryText: {
+        color: '#fff',
+        fontWeight: '700',
     },
     proposalDetails: {
         marginBottom: height * 0.015,

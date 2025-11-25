@@ -9,7 +9,8 @@ import {
     updateBid,
     getBidStats,
     getBidderStats,
-    getVendorProposals
+    getVendorProposals,
+    counterBid
 } from '../controllers/bidController.js';
 import { protect, requireRoles } from '../middleware/auth.js';
 
@@ -24,6 +25,7 @@ router.get('/my-bids', requireRoles('buyer'), getBidsByBidder); // Get bidder's 
 router.get('/my-stats', requireRoles('buyer'), getBidderStats); // Get bidder's bid statistics
 router.patch('/:bidId', requireRoles('buyer'), updateBid); // Update a pending bid
 router.patch('/:bidId/withdraw', requireRoles('buyer'), withdrawBid); // Withdraw a bid
+router.patch('/:bidId/counter', requireRoles('buyer', 'vendor'), counterBid); // General counter offer
 
 // Seller routes (for product owners)
 router.get('/vendor/proposals', requireRoles('vendor'), getVendorProposals); // Get all proposals for vendor
