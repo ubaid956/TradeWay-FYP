@@ -23,7 +23,7 @@ const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 // API URLs for different environments
 const API_URLS = {
-    development: envBaseUrl || 'https://m1p2hrxd-5000.asse.devtunnels.ms/api',
+    development: envBaseUrl || 'https://5w64q84c-5000.inc1.devtunnels.ms/api',
     staging: envBaseUrl || 'https://staging-tradeway.example.com/api',
     production: envBaseUrl || 'https://api.tradeway.com/api',
 };

@@ -8,6 +8,8 @@ import {
     TouchableOpacity,
     View,
     Alert,
+    Modal,
+    TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { globalStyles } from '@/Styles/globalStyles';
@@ -27,6 +29,16 @@ type MyProposalsProps = {
     showBackButton?: boolean;
 };
 
+type CounterActor = 'buyer' | 'vendor';
+
+interface CounterEntry {
+    actor: CounterActor;
+    bidAmount: number;
+    quantity: number;
+    message?: string;
+    createdAt?: string;
+}
+
 const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
     const router = useRouter();
     const [bids, setBids] = useState<any[]>([]);
@@ -34,6 +46,12 @@ const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actioningBidId, setActioningBidId] = useState<string | null>(null);
+    const [showCounterModal, setShowCounterModal] = useState(false);
+    const [activeBid, setActiveBid] = useState<any | null>(null);
+    const [counterAmount, setCounterAmount] = useState('');
+    const [counterQuantity, setCounterQuantity] = useState('');
+    const [counterMessage, setCounterMessage] = useState('');
+    const [counterSubmitting, setCounterSubmitting] = useState(false);
 
     const fetchBids = useCallback(async () => {
         try {
@@ -136,6 +154,58 @@ const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
         </View>
     );
 
+    const closeCounterModal = () => {
+        setShowCounterModal(false);
+        setActiveBid(null);
+        setCounterAmount('');
+        setCounterQuantity('');
+        setCounterMessage('');
+        setCounterSubmitting(false);
+    };
+
+    const submitCounterOffer = async () => {
+        if (!activeBid) return;
+        if (!counterAmount || !counterQuantity) {
+            Alert.alert('Missing info', 'Provide both amount and quantity.');
+            return;
+        }
+
+        const amount = Number(counterAmount);
+        const qty = Number(counterQuantity);
+        if (Number.isNaN(amount) || Number.isNaN(qty) || amount <= 0 || qty <= 0) {
+            Alert.alert('Invalid values', 'Amount and quantity must be positive numbers.');
+            return;
+        }
+
+        try {
+            setCounterSubmitting(true);
+            const response = await apiService.bids.counterOffer(activeBid._id, {
+                bidAmount: amount,
+                quantity: qty,
+                message: counterMessage,
+            });
+
+            if (!response.success) {
+                throw new Error(response.error || response.message || 'Failed to send counter offer');
+            }
+
+            Alert.alert('Counter sent', 'Vendor has been notified.', [
+                { text: 'OK', onPress: () => fetchBids() }
+            ]);
+            closeCounterModal();
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Unable to send counter offer');
+        } finally {
+            setCounterSubmitting(false);
+        }
+    };
+
+    const formatHistoryDate = (dateString?: string) => {
+        if (!dateString) return 'Just now';
+        const date = new Date(dateString);
+        return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    };
+
     const renderBid = ({ item }: { item: any }) => {
         const product = item.product || {};
         const productId = product._id || product.id || item.productId;
@@ -145,6 +215,19 @@ const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
 
         const isPending = statusKey === 'pending';
         const isActioning = actioningBidId === item._id;
+        const awaitingYou: boolean = item.awaitingAction === 'buyer' && isPending;
+        const awaitingVendor: boolean = item.awaitingAction === 'vendor' && isPending;
+        const history: CounterEntry[] = item.counterHistory || [];
+
+        const openCounterModal = () => {
+            const history: CounterEntry[] = item.counterHistory || [];
+            const last = history.length ? history[history.length - 1] : null;
+            setActiveBid(item);
+            setCounterAmount(String(last?.bidAmount || item.bidAmount));
+            setCounterQuantity(String(last?.quantity || item.quantity));
+            setCounterMessage('');
+            setShowCounterModal(true);
+        };
 
         return (
             <View style={styles.bidCard}>
@@ -191,6 +274,43 @@ const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
                     <View style={styles.responseBlock}>
                         <Text style={styles.responseLabel}>Seller response</Text>
                         <Text style={styles.responseMessage}>{item.sellerResponse.message}</Text>
+                    </View>
+                )}
+
+                {history.length > 1 && (
+                    <View style={styles.historyContainer}>
+                        <Text style={styles.historyTitle}>Negotiation history</Text>
+                        {history.map((entry: CounterEntry, index: number) => (
+                            <View key={`${item._id}-history-${index}`} style={styles.historyRow}>
+                                <View style={[styles.historyBadge, entry.actor === 'buyer' ? styles.historyBuyer : styles.historyVendor]}>
+                                    <Text style={styles.historyBadgeText}>{entry.actor === 'buyer' ? 'You' : 'Vendor'}</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.historyAmount}>{formatCurrency(entry.bidAmount, { fractionDigits: 0 })}</Text>
+                                    <Text style={styles.historyMeta}>Qty {entry.quantity} • {formatHistoryDate(entry.createdAt)}</Text>
+                                    {entry.message ? <Text style={styles.historyMessage}>{entry.message}</Text> : null}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {awaitingVendor && (
+                    <Text style={styles.awaitingText}>Waiting for vendor response…</Text>
+                )}
+
+                {awaitingYou && (
+                    <TouchableOpacity style={styles.counterButton} onPress={openCounterModal}>
+                        <Text style={styles.counterButtonText}>Respond with counter offer</Text>
+                    </TouchableOpacity>
+                )}
+
+                {item.agreement?.amount && item.status === 'accepted' && (
+                    <View style={styles.agreementBanner}>
+                        <Text style={styles.agreementTitle}>Agreed amount</Text>
+                        <Text style={styles.agreementText}>
+                            {formatCurrency(item.agreement.amount, { fractionDigits: 0 })} • Qty {item.agreement.quantity || item.quantity}
+                        </Text>
                     </View>
                 )}
 
@@ -290,6 +410,56 @@ const MyProposals = ({ showBackButton = true }: MyProposalsProps) => {
                     </TouchableOpacity>
                 </View>
             )}
+
+            <Modal
+                visible={showCounterModal}
+                transparent
+                animationType="slide"
+                onRequestClose={closeCounterModal}
+            >
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Counter Offer</Text>
+                        <Text style={styles.modalSubtitle}>{activeBid?.product?.title || 'Proposal'}</Text>
+
+                        <Text style={styles.modalLabel}>Offer amount</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            keyboardType="numeric"
+                            value={counterAmount}
+                            onChangeText={setCounterAmount}
+                            placeholder="e.g. 120000"
+                        />
+
+                        <Text style={styles.modalLabel}>Quantity</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            keyboardType="numeric"
+                            value={counterQuantity}
+                            onChangeText={setCounterQuantity}
+                            placeholder="Number of units"
+                        />
+
+                        <Text style={styles.modalLabel}>Message (optional)</Text>
+                        <TextInput
+                            style={[styles.modalInput, { height: 90 }]}
+                            value={counterMessage}
+                            onChangeText={setCounterMessage}
+                            placeholder="Add a short note"
+                            multiline
+                        />
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={[styles.modalButton, styles.modalCancelButton]} onPress={closeCounterModal} disabled={counterSubmitting}>
+                                <Text style={styles.modalCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalButton, styles.modalPrimaryButton]} onPress={submitCounterOffer} disabled={counterSubmitting}>
+                                <Text style={styles.modalPrimaryText}>{counterSubmitting ? 'Sending…' : 'Send Counter'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -445,6 +615,83 @@ const styles = StyleSheet.create({
         color: '#0F172A',
         fontSize: 14,
     },
+    historyContainer: {
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+        paddingTop: 12,
+        marginTop: 12,
+        gap: 12,
+    },
+    historyTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#0F172A',
+    },
+    historyRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    historyBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+    },
+    historyBuyer: {
+        backgroundColor: '#DBEAFE',
+    },
+    historyVendor: {
+        backgroundColor: '#FCE7F3',
+    },
+    historyBadgeText: {
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    historyAmount: {
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    historyMeta: {
+        fontSize: 12,
+        color: '#475569',
+        marginTop: 2,
+    },
+    historyMessage: {
+        fontSize: 13,
+        color: '#0F172A',
+        marginTop: 4,
+    },
+    awaitingText: {
+        marginTop: 12,
+        color: '#92400E',
+        fontWeight: '600',
+    },
+    counterButton: {
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#0758C2',
+        borderRadius: 12,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    counterButtonText: {
+        color: '#0758C2',
+        fontWeight: '700',
+    },
+    agreementBanner: {
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: '#ECFDF5',
+    },
+    agreementTitle: {
+        color: '#047857',
+        fontWeight: '600',
+    },
+    agreementText: {
+        color: '#065F46',
+        marginTop: 4,
+        fontWeight: '700',
+    },
     actionRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -568,6 +815,68 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
         marginTop: 6,
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalCard: {
+        width: '100%',
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 20,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    modalSubtitle: {
+        color: '#475569',
+        marginBottom: 12,
+    },
+    modalLabel: {
+        marginTop: 12,
+        fontWeight: '600',
+        color: '#0F172A',
+    },
+    modalInput: {
+        marginTop: 6,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderRadius: 10,
+        padding: 12,
+        backgroundColor: '#fff',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        marginTop: 20,
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        borderRadius: 12,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    modalCancelButton: {
+        borderWidth: 1,
+        borderColor: '#CBD5F5',
+        backgroundColor: '#fff',
+    },
+    modalPrimaryButton: {
+        backgroundColor: '#0758C2',
+    },
+    modalCancelText: {
+        color: '#0F172A',
+        fontWeight: '600',
+    },
+    modalPrimaryText: {
+        color: '#fff',
+        fontWeight: '700',
     },
 });
 

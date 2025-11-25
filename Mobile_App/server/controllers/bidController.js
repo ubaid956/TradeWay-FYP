@@ -386,6 +386,27 @@ export const rejectBid = async (req, res) => {
         };
         await bid.save();
 
+        // If this was the last pending bid, ensure the product remains available
+        const pendingCount = await Bid.countDocuments({
+            product: bid.product._id,
+            status: 'pending'
+        });
+
+        if (pendingCount === 0 && !bid.product.isSold) {
+            const shouldActivate = !bid.product.isActive;
+            const shouldMarkAvailable = bid.product.availability?.isAvailable === false;
+
+            if (shouldActivate || shouldMarkAvailable) {
+                const productUpdate = {};
+                if (shouldActivate) productUpdate.isActive = true;
+                if (shouldMarkAvailable) productUpdate['availability.isAvailable'] = true;
+
+                await Product.findByIdAndUpdate(bid.product._id, {
+                    $set: productUpdate
+                });
+            }
+        }
+
         // Populate the rejected bid
         await bid.populate([
             { path: 'bidder', select: 'name email phone' },
