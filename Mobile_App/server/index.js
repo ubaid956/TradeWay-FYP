@@ -8,6 +8,8 @@ import fileUpload from 'express-fileupload';
 import admin from 'firebase-admin';
 
 import connectDB from './config/db.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import { stripeWebhook } from './controllers/paymentController.js';
 import userRoutes from './routes/userRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import productRoutes from './routes/productRoutes.js';
@@ -29,7 +31,7 @@ dotenv.config();
 // ✅ Initialize Firebase Admin
 if (!admin.apps.length) {
     admin.initializeApp({
-        credential: admin.credential.cert('./tradeway-89ff8-firebase-adminsdk-fbsvc-9ff38d3882.json'),
+        credential: admin.credential.cert('./tradeway-89ff8-firebase-adminsdk-fbsvc-a13ee98017.json'),
     });
 }
 
@@ -39,7 +41,10 @@ const httpServer = createServer(app);
 // ✅ Middleware
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
+
+// Preserve raw body for Stripe webhook verification
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
+
 app.use(cors({
     origin: '*'
 }));
@@ -65,6 +70,11 @@ app.use('/api/grading', gradingRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin', protect, requireRoles('admin'), adminRoutes);
 app.use('/api/industry', protect, requireRoles('admin'), industryRoutes);
+// Payments
+app.use('/api/payments', paymentRoutes);
+
+// Stripe webhook endpoint (must be reachable by Stripe)
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhook);
 // app.use('/api/groups', groupRoutes);
 
 // ✅ Error handling middleware (optional)

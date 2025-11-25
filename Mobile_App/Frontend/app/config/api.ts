@@ -178,6 +178,12 @@ export const API_ENDPOINTS = {
         BY_USER: '/jobs/user',
         APPLY: '/jobs/apply',
     },
+    // Payments
+    PAYMENTS: {
+        CREATE_INTENT: '/payments/create-payment-intent',
+        PUBLISHABLE_KEY: '/payments/publishable-key',
+        // webhook is handled server-side
+    },
 };
 
 // Helper function to build full URL

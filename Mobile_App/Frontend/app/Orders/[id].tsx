@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, View, ActivityIndicator, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import apiService from '../services/apiService';
+import { useAppSelector } from '../store/hooks';
+import { useState } from 'react';
+import { useStripe } from '@stripe/stripe-react-native';
 import { globalStyles } from '@/Styles/globalStyles';
 
 const { width } = Dimensions.get('window');
@@ -13,6 +16,11 @@ const OrderDetail = () => {
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const auth = useAppSelector(state => state.auth);
+  const currentUser = auth.user;
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -132,6 +140,50 @@ const OrderDetail = () => {
           <Text style={styles.subtle}>{order.buyer?.email}</Text>
           <Text style={styles.subtle}>{order.buyer?.phone}</Text>
         </View>
+
+        {/* Pay Now button for buyer when order is unpaid */}
+        {currentUser && (currentUser._id === order.buyer?._id) && order.payment?.status !== 'paid' && (
+          <View style={{ paddingHorizontal: width * 0.05, marginBottom: 40 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0758C2', padding: 14, borderRadius: 10, alignItems: 'center' }}
+              disabled={processingPayment}
+              onPress={async () => {
+                try {
+                  setProcessingPayment(true);
+                  // create payment intent on server
+                  const resp = await apiService.payments.createPaymentIntent(order._id);
+                  if (!resp.success) {
+                    throw new Error(resp.error || 'Failed to create payment intent');
+                  }
+                  const clientSecret = resp.data?.clientSecret || resp.data?.client_secret || resp.data;
+
+                  // initialize payment sheet
+                  const initResult = await initPaymentSheet({ paymentIntentClientSecret: clientSecret, merchantDisplayName: 'TradeWay' });
+                  if (initResult.error) {
+                    throw new Error(initResult.error.message || 'Failed to init payment sheet');
+                  }
+
+                  const presentResult = await presentPaymentSheet();
+                  if (presentResult.error) {
+                    throw new Error(presentResult.error.message || 'Payment failed');
+                  }
+
+                  // Payment succeeded — refresh order (webhook will also update)
+                  await apiService.orders.getOrderById(order._id);
+                  const refreshed = await apiService.orders.getOrderById(order._id);
+                  if (refreshed.success) setOrder(refreshed.data?.data || refreshed.data || null);
+                } catch (err: any) {
+                  console.error('Payment error:', err);
+                  alert(err.message || 'Payment failed');
+                } finally {
+                  setProcessingPayment(false);
+                }
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{processingPayment ? 'Processing…' : `Pay $${total.toFixed(2)}`}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading ? (
           <ActivityIndicator size="small" color="#2563EB" />

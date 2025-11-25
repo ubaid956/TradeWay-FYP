@@ -29,8 +29,8 @@ Mobile_App/server/node_modules/
 **/firebase-adminsdk-*.json
 **/*firebase-adminsdk*.json
 tradeway-89ff8-firebase-adminsdk-*.json
-**/google-services.json
-google-services.json
+tradeway-89ff8-firebase-adminsdk-fbsvc-a13ee98017.json
+
 
 # API Keys and Config Files
 config.json

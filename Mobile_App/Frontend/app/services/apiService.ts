@@ -650,6 +650,20 @@ export const ordersApi = {
     },
 };
 
+// Payments API
+export const paymentsApi = {
+    createPaymentIntent: async (orderId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(API_ENDPOINTS.PAYMENTS.CREATE_INTENT, {
+            method: 'POST',
+            body: JSON.stringify({ orderId }),
+        });
+    },
+    getPublishableKey: async (): Promise<ApiResponse<{ publishableKey: string | null }>> => {
+        // Publishable key is safe to fetch without auth; use apiRequest instead of authenticatedRequest
+        return apiRequest<{ publishableKey: string | null }>(API_ENDPOINTS.PAYMENTS.PUBLISHABLE_KEY);
+    },
+};
+
 // Recommendations API calls
 export interface RecommendationItem {
     productId: string;
@@ -713,6 +727,7 @@ export const apiService = {
     kyc: kycApi,
     bids: bidsApi,
     orders: ordersApi,
+    payments: paymentsApi,
     recommendations: recommendationsApi,
     grading: gradingApi,
 };
