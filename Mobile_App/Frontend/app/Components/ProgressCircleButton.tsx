@@ -53,7 +53,7 @@ const ProgressCircleButton = ({ currentScreen, totalScreens, onPress }) => {
         }}
         onPress={onPress}
       >
-        <AntDesign name="arrowright" size={32} color="white" />
+        <AntDesign name="right" size={32} color="white" />
       </TouchableOpacity>
     </View>
   );
