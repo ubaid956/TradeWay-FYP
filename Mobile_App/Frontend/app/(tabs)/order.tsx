@@ -1,8 +1,9 @@
 import { globalStyles } from '@/Styles/globalStyles';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import SearchBar from 'react-native-dynamic-search-bar';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 // import { useAppSelector } from '../store/hooks';
 import { useAppSelector } from '@/src/store/hooks';
 import HomeHeader from '../Components/HomePage/HomeHeader';
@@ -36,6 +37,7 @@ const Order = () => {
   const [isDropdownVisible, setDropdownVisible] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [searchText, setSearchText] = useState('');
 
@@ -49,28 +51,50 @@ const Order = () => {
     setDropdownVisible(false);
   };
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      setError('');
-      // If the logged-in user is a driver, skip fetching seller orders
-      if (isDriver) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
+  const fetchOrders = useCallback(async () => {
+    if (isDriver) {
+      setOrders([]);
+      return;
+    }
 
+    try {
+      console.log('Fetching seller orders for user:', user?._id);
       const resp = await apiService.orders.getSellerOrders();
+      console.log('Seller orders response:', resp);
+      
       if (resp.success) {
         const list = (resp.data?.data || resp.data || []) as any[];
+        console.log('Parsed orders list:', list);
         setOrders(Array.isArray(list) ? list : []);
+        setError('');
       } else {
+        console.error('Failed to load orders:', resp.error);
         setError(resp.error || 'Failed to load orders');
       }
+    } catch (err: any) {
+      console.error('Error fetching orders:', err);
+      setError(err?.message || 'Failed to load orders');
     }
-    // run fetch
-    fetchOrders();
-  }, [user]);
+  }, [isDriver, user?._id]);
+
+  // Initial fetch
+  useEffect(() => {
+    setLoading(true);
+    fetchOrders().finally(() => setLoading(false));
+  }, [fetchOrders]);
+
+  // Refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrders();
+    }, [fetchOrders])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchOrders();
+    setRefreshing(false);
+  }, [fetchOrders]);
 
   const sortedOrders = useMemo(() => {
     // Apply search filter first
@@ -111,7 +135,11 @@ const Order = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        style={{ backgroundColor: '#f9fafb' }}>
+        style={{ backgroundColor: '#f9fafb' }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
 
         <SearchBar
           style={{

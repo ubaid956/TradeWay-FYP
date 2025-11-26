@@ -17,12 +17,14 @@ export const getGroupMessages = async (req, res) => {
 // @desc    Create new message
 export const createMessage = async (req, res) => {
   try {
-    const { groupId, text } = req.body;
+    const { groupId, text, type = 'text', metadata } = req.body;
 
     const message = await Message.create({
       sender: req.user._id,
       group: groupId,
       text,
+      type,
+      metadata,
     });
 
     const populatedMessage = await Message.populate(message, {
@@ -39,7 +41,7 @@ export const createMessage = async (req, res) => {
 // Send private message
 export const sendPrivateMessage = async (req, res) => {
   try {
-    const { recipientId, text } = req.body;
+    const { recipientId, text, type = 'text', metadata } = req.body;
 
     // Validate recipient exists
     const recipient = await User.findById(recipientId);
@@ -51,6 +53,8 @@ export const sendPrivateMessage = async (req, res) => {
       sender: req.user._id,
       recipient: recipientId,
       text,
+      type,
+      metadata,
       isPrivate: true // This will make group field optional
     });
 

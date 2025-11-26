@@ -226,10 +226,18 @@ export const createProduct = async (req, res) => {
 
     } catch (error) {
         console.error('Create product error:', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Product validation failed',
+                error: error.message
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Error creating product',
-            error: error.message
+            error: error.message || 'Unexpected server error'
         });
     }
 };

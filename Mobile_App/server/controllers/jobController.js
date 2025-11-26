@@ -1,6 +1,8 @@
 import Job from '../models/Job.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import Shipment from '../models/Shipment.js';
+import User from '../models/User.js';
 
 const JOB_STATUSES = ['open', 'assigned', 'in_transit', 'delivered', 'cancelled'];
 const STATUS_TRANSITIONS = {
@@ -153,6 +155,7 @@ export const getDriverJobs = async (req, res) => {
 		const jobs = await Job.find({ $or: filter })
 			.populate('product', 'title images')
 			.populate('vendor', 'name phone')
+			.populate('shipment')
 			.sort({ createdAt: -1 });
 
 		return res.json({ success: true, data: jobs });
@@ -200,9 +203,13 @@ export const assignJob = async (req, res) => {
 		}
 		const { jobId } = req.params;
 		const driverId = req.user._id || req.user.id;
-		const { notes } = req.body || {};
+		const { notes, vehicleNumber } = req.body || {};
 
-		const job = await Job.findById(jobId);
+		const job = await Job.findById(jobId)
+			.populate('product', 'title')
+			.populate('vendor', 'name phone')
+			.populate('buyer', 'name phone');
+			
 		if (!job) {
 			return res.status(404).json({ success: false, message: 'Job not found' });
 		}
@@ -210,12 +217,78 @@ export const assignJob = async (req, res) => {
 			return res.status(400).json({ success: false, message: 'Job is no longer available' });
 		}
 
+		// Get driver details
+		const driver = await User.findById(driverId).select('name phone');
+		if (!driver) {
+			return res.status(404).json({ success: false, message: 'Driver not found' });
+		}
+
+		// Update job
 		job.driver = driverId;
 		job.status = 'assigned';
 		appendStatusHistory(job, 'assigned', driverId, notes);
 		await job.save();
 
-		return res.json({ success: true, message: 'Job assigned successfully', data: job });
+		// Create shipment for tracking
+		const shipment = new Shipment({
+			orderId: job.order || job._id, // Use job ID if no order
+			driverId: driverId,
+			vehicleNumber: vehicleNumber || 'N/A',
+			origin: {
+				address: job.origin?.address || 'Pickup Location',
+				location: {
+					type: 'Point',
+					coordinates: [
+						job.origin?.longitude || 67.0011,
+						job.origin?.latitude || 24.8607
+					]
+				},
+				name: job.origin?.label || 'Origin'
+			},
+			destination: {
+				address: job.destination?.address || 'Delivery Location',
+				location: {
+					type: 'Point',
+					coordinates: [
+						job.destination?.longitude || 74.3587,
+						job.destination?.latitude || 31.5204
+					]
+				},
+				name: job.destination?.label || 'Destination'
+			},
+			estimatedDeliveryTime: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 hours from now
+			status: 'pending',
+			statusHistory: [{
+				status: 'pending',
+				message: 'Job assigned to driver',
+				timestamp: new Date()
+			}],
+			distance: job.cargoDetails?.distance || 0,
+			items: [{
+				name: job.product?.title || 'Cargo',
+				quantity: 1,
+				weight: job.cargoDetails?.weight || 0
+			}],
+			notes: notes || ''
+		});
+
+		await shipment.save();
+
+		// Add shipment reference to job
+		job.shipment = shipment._id;
+		await job.save();
+
+		return res.json({ 
+			success: true, 
+			message: 'Job assigned successfully. Shipment created for tracking.',
+			data: { 
+				job, 
+				shipment: {
+					id: shipment._id,
+					status: shipment.status
+				}
+			}
+		});
 	} catch (error) {
 		console.error('Assign job error:', error);
 		return res.status(500).json({ success: false, message: 'Failed to assign job', error: error.message });
@@ -258,6 +331,32 @@ export const updateJobStatus = async (req, res) => {
 		appendStatusHistory(job, status, userId, notes);
 		await job.save();
 
+		// Update shipment status if exists
+		if (job.shipment) {
+			const shipmentStatusMap = {
+				'assigned': 'picked_up',
+				'in_transit': 'in_transit',
+				'delivered': 'delivered',
+				'cancelled': 'cancelled'
+			};
+			
+			const shipmentStatus = shipmentStatusMap[status];
+			if (shipmentStatus) {
+				await Shipment.findByIdAndUpdate(job.shipment, {
+					status: shipmentStatus,
+					$push: {
+						statusHistory: {
+							status: shipmentStatus,
+							message: notes || `Status updated to ${status}`,
+							timestamp: new Date()
+						}
+					},
+					...(status === 'delivered' ? { actualDeliveryTime: new Date() } : {})
+				});
+			}
+		}
+
+		// Update order status
 		if (status === 'delivered' && job.order) {
 			await Order.findByIdAndUpdate(job.order, {
 				status: 'Completed',

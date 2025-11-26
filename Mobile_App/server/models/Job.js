@@ -41,6 +41,7 @@ const jobSchema = new mongoose.Schema(
     buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+    shipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Shipment' },
     cargoDetails: {
       weight: Number,
       unit: { type: String, default: 'kg' },

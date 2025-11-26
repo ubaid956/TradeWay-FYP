@@ -12,6 +12,7 @@ import {
     getVendorProposals,
     counterBid
 } from '../controllers/bidController.js';
+import { createInvoiceFromBid } from '../controllers/invoiceController.js';
 import { protect, requireRoles } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -33,5 +34,6 @@ router.get('/product/:productId', requireRoles('vendor'), getBidsForProduct); //
 router.get('/stats', requireRoles('vendor'), getBidStats); // Get seller's bid statistics
 router.patch('/:bidId/accept', requireRoles('vendor'), acceptBid); // Accept a bid
 router.patch('/:bidId/reject', requireRoles('vendor'), rejectBid); // Reject a bid
+router.post('/:bidId/invoice', requireRoles('vendor'), createInvoiceFromBid); // Create invoice for accepted bid
 
 export default router;

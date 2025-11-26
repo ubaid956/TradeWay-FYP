@@ -230,12 +230,28 @@ const authenticatedRequest = async <T = any>(
 
         const response = await fetch(url, defaultOptions);
 
+        // Read raw body once to avoid double-read issues and improve error context
+        const rawBody = await response.text().catch(() => '');
+
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            let parsed: any = null;
+            try {
+                parsed = rawBody ? JSON.parse(rawBody) : null;
+            } catch (parseErr) {
+                // Keep raw body when JSON parsing fails
+            }
+
+            const errorMessage = parsed?.message || parsed?.error || rawBody || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage.trim());
         }
 
-        const data = await response.json();
+        let data: any = null;
+        try {
+            data = rawBody ? JSON.parse(rawBody) : null;
+        } catch (parseErr) {
+            // If a successful response isn't JSON, return the raw string
+            data = rawBody;
+        }
 
         return {
             success: true,
@@ -525,15 +541,24 @@ export const productsApi = {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${token}`,
                 },
                 body: formData,
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                const contentType = response.headers.get('content-type') || '';
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+                if (contentType.includes('application/json')) {
+                    const errorData = await response.json().catch(() => ({}));
+                    errorMessage = errorData.message || errorData.error || errorMessage;
+                } else {
+                    const errorText = await response.text().catch(() => '');
+                    errorMessage = errorText || errorMessage;
+                }
+
+                throw new Error(errorMessage.trim());
             }
 
             const data = await response.json();
@@ -826,9 +851,97 @@ export const paymentsApi = {
             body: JSON.stringify({ orderId }),
         });
     },
+    createInvoicePaymentIntent: async (invoiceId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.PAYMENTS.INVOICE_INTENT}/${invoiceId}/create-payment-intent`, {
+            method: 'POST',
+        });
+    },
+    processInvoicePayment: async (invoiceId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.PAYMENTS.INVOICE_INTENT}/${invoiceId}/process-payment`, {
+            method: 'POST',
+        });
+    },
     getPublishableKey: async (): Promise<ApiResponse<{ publishableKey: string | null }>> => {
         // Publishable key is safe to fetch without auth; use apiRequest instead of authenticatedRequest
         return apiRequest<{ publishableKey: string | null }>(API_ENDPOINTS.PAYMENTS.PUBLISHABLE_KEY);
+    },
+};
+
+export const invoicesApi = {
+    sendInvoice: async (bidId: string, notes?: string): Promise<ApiResponse<any>> => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
+            const payload = JSON.stringify(notes ? { notes } : {});
+            const headers = getAuthHeaders(token);
+
+            const attempt = async (endpoint: string) => {
+                const url = buildApiUrl(endpoint);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: payload,
+                });
+
+                const raw = await response.text();
+                let parsed: any = null;
+
+                try {
+                    parsed = raw ? JSON.parse(raw) : null;
+                } catch (parseError) {
+                    // Keep raw body when JSON parsing fails
+                }
+
+                if (!response.ok) {
+                    const mergedMessage = parsed?.message || parsed?.error || raw || `HTTP ${response.status}: ${response.statusText}`;
+                    return {
+                        success: false,
+                        data: parsed,
+                        error: typeof mergedMessage === 'string' ? mergedMessage : JSON.stringify(mergedMessage),
+                        status: response.status,
+                    };
+                }
+
+                return {
+                    success: true,
+                    data: parsed,
+                    status: response.status,
+                };
+            };
+
+            let result = await attempt(`${API_ENDPOINTS.BIDS.ROOT}/${bidId}/invoice`);
+
+            if (!result.success && result.status === 404) {
+                result = await attempt(`${API_ENDPOINTS.INVOICES.FROM_BID}/${bidId}`);
+            }
+
+            if (!result.success) {
+                console.error('Send invoice failed:', result.error);
+                return {
+                    success: false,
+                    data: result.data,
+                    error: result.error,
+                };
+            }
+
+            return {
+                success: true,
+                data: result.data,
+            };
+        } catch (error: any) {
+            console.error('Send invoice error:', error);
+            return {
+                success: false,
+                data: null,
+                error: error.message || 'An unexpected error occurred',
+            };
+        }
+    },
+    getInvoiceById: async (invoiceId: string): Promise<ApiResponse<any>> => {
+        return authenticatedRequest<any>(`${API_ENDPOINTS.INVOICES.BY_ID}/${invoiceId}`);
     },
 };
 
@@ -940,6 +1053,7 @@ export const apiService = {
     bids: bidsApi,
     orders: ordersApi,
     payments: paymentsApi,
+    invoices: invoicesApi,
     jobs: jobsApi,
     recommendations: recommendationsApi,
     requirements: requirementsApi,

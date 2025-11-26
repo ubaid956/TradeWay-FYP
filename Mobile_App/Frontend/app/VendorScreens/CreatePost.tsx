@@ -540,6 +540,7 @@ const CreatePost = () => {
                 let gradeSummary = '';
                 let gradeLabel = '';
                 let gradingFailed = false;
+                let gradingSkipped = false;
                 let gradeRejected = false;
 
                 if (createdProduct?._id && createdProduct.images?.length) {
@@ -549,18 +550,37 @@ const CreatePost = () => {
                             imageUrls: createdProduct.images,
                             promptContext: `Auto grading during listing creation by ${user?.name || 'vendor'}`,
                         });
-
-                        const gradeData = gradeResponse.data?.data || gradeResponse.data;
-                        const normalizedGrade = (gradeData?.grade || '').toLowerCase();
-                        gradeSummary = gradeData?.summary || '';
-                        gradeLabel = gradeData?.grade || '';
-
-                        if (normalizedGrade === 'reject') {
-                            gradeRejected = true;
+                        if (!gradeResponse.success) {
+                            gradingFailed = true;
+                            const fallbackMessage = gradeResponse.error || 'Automatic grading is currently unavailable. Please retry from the dashboard later.';
                             setGradingStatus('error');
-                            setGradingError('AI could not verify marble quality from these images. Please upload clearer slab shots and retry grading.');
+                            setGradingError(fallbackMessage);
                         } else {
-                            setGradingStatus('success');
+                            const apiPayload: any = gradeResponse.data || {};
+                            const gradeData = apiPayload?.data ?? apiPayload;
+                            const gradingMeta = apiPayload?.meta;
+
+                            gradeSummary = gradeData?.summary || '';
+                            gradeLabel = gradeData?.grade || '';
+
+                            if (gradingMeta?.gradingDisabled) {
+                                gradingSkipped = true;
+                                if (!gradeSummary) {
+                                    gradeSummary = 'Automatic grading is disabled for this environment.';
+                                }
+                                gradeLabel = '';
+                                setGradingStatus('success');
+                            } else {
+                                const normalizedGrade = (gradeData?.grade || '').toLowerCase();
+
+                                if (normalizedGrade === 'reject') {
+                                    gradeRejected = true;
+                                    setGradingStatus('error');
+                                    setGradingError('AI could not verify marble quality from these images. Please upload clearer slab shots and retry grading.');
+                                } else {
+                                    setGradingStatus('success');
+                                }
+                            }
                         }
                     } catch (gradingErr: any) {
                         console.error('Product grading error:', gradingErr);
@@ -573,17 +593,25 @@ const CreatePost = () => {
                 // Refresh the seller products list
                 dispatch(fetchSellerProducts());
 
-                Alert.alert(
-                    gradeRejected
-                        ? 'Listing posted with grading issue'
+                const alertTitle = gradeRejected
+                    ? 'Listing posted with grading issue'
+                    : gradingSkipped
+                        ? 'Product posted without automatic grade'
                         : gradingFailed
                             ? 'Product posted (grading pending)'
-                            : 'Product created and graded',
-                    gradeRejected
-                        ? 'Your listing is live but our AI rejected the current photos. You can update images and retry grading from the product details screen.'
+                            : 'Product created and graded';
+
+                const alertMessage = gradeRejected
+                    ? 'Your listing is live but our AI rejected the current photos. You can update images and retry grading from the product details screen.'
+                    : gradingSkipped
+                        ? 'Your listing is live. Automatic grading is disabled in this environment, so no grade was attached.'
                         : gradingFailed
                             ? 'Your listing is live but we could not finish AI grading automatically. Please retry from the dashboard.'
-                            : `Listing is live and graded${gradeLabel ? ` as ${gradeLabel.toUpperCase()}` : ''}.${gradeSummary ? `\n${gradeSummary}` : ''}`,
+                            : `Listing is live and graded${gradeLabel ? ` as ${gradeLabel.toUpperCase()}` : ''}.${gradeSummary ? `\n${gradeSummary}` : ''}`;
+
+                Alert.alert(
+                    alertTitle,
+                    alertMessage,
                     [
                         {
                             text: 'OK',

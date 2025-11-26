@@ -4,7 +4,9 @@ const orderSchema = new mongoose.Schema({
     orderNumber: {
         type: String,
         unique: true,
-        required: true
+        // Generate automatically; not required at validation time
+        required: false,
+        default: null
     },
     buyer: {
         type: mongoose.Schema.Types.ObjectId,
@@ -82,7 +84,7 @@ const orderSchema = new mongoose.Schema({
     payment: {
         method: {
             type: String,
-            enum: ['cash', 'bank_transfer', 'check', 'other'],
+            enum: ['cash', 'bank_transfer', 'check', 'stripe', 'other'],
             default: 'cash'
         },
         status: {
@@ -161,8 +163,8 @@ orderSchema.pre('save', function (next) {
     next();
 });
 
-// Generate order number before saving
-orderSchema.pre('save', async function (next) {
+// Ensure orderNumber exists before validation/save
+orderSchema.pre('validate', async function (next) {
     if (this.isNew && !this.orderNumber) {
         const count = await mongoose.model('Order').countDocuments();
         this.orderNumber = `ORD-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;

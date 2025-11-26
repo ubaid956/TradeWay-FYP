@@ -484,6 +484,12 @@ const Profile = () => {
           </Text>
           <View style={{ backgroundColor: '#f4f4f4' }}>
             <Profile_cart
+              onPress={() => router.push('/Orders/TrackOrders')}
+              iconComponent={MaterialIcons}
+              iconName="local-shipping"
+              text="Track Orders"
+            />
+            <Profile_cart
               iconComponent={MaterialIcons}
               iconName="receipt"
               text="Recent Transactions"

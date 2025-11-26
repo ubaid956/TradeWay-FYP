@@ -23,7 +23,7 @@ const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 // API URLs for different environments
 const API_URLS = {
-    development: envBaseUrl || 'https://5w64q84c-5000.inc1.devtunnels.ms/api',
+    development: envBaseUrl || 'https://m1p2hrxd-5000.asse.devtunnels.ms/api',
     staging: envBaseUrl || 'https://staging-tradeway.example.com/api',
     production: envBaseUrl || 'https://api.tradeway.com/api',
 };
@@ -189,10 +189,16 @@ export const API_ENDPOINTS = {
         ASSIGN: '/jobs',
         STATUS: '/jobs',
     },
+    // Invoices
+    INVOICES: {
+        FROM_BID: '/invoices/from-bid',
+        BY_ID: '/invoices',
+    },
     // Payments
     PAYMENTS: {
         CREATE_INTENT: '/payments/create-payment-intent',
         PUBLISHABLE_KEY: '/payments/publishable-key',
+        INVOICE_INTENT: '/payments/invoices',
         // webhook is handled server-side
     },
 };

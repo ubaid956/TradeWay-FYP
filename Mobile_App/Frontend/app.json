@@ -14,11 +14,16 @@
       "icon": "./assets/images/Splash/splash_blue.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "We need your location to share it with your group.",
+        "NSLocationWhenInUseUsageDescription": "We need your location to track shipments and share it with your group.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need background location access to track shipments while the app is in the background.",
+        "NSLocationAlwaysUsageDescription": "We need background location access to track shipments continuously.",
         "NSMicrophoneUsageDescription": "This app requires access to your microphone to send voice messages.",
         "NSCameraUsageDescription": "This app uses the camera to let you take photos.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select pictures.",
         "NSPhotoLibraryAddUsageDescription": "This app saves photos to your library."
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyBcQg9AYubqXDgtiPoACyI7e0wp8ORJkHs"
       }
     },
     "android": {
@@ -29,6 +34,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBcQg9AYubqXDgtiPoACyI7e0wp8ORJkHs"
+        }
+      },
       "permissions": [
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
@@ -79,13 +89,27 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "We need your location to track shipments in real-time.",
+          "locationAlwaysPermission": "We need background location access to track shipments while the app is in the background.",
+          "locationWhenInUsePermission": "We need your location to track shipments and share it with your group.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
-            "buildToolsVersion": "34.0.0"
+            "buildToolsVersion": "34.0.0",
+            "usesCleartextTraffic": true
+          },
+          "ios": {
+            "useFrameworks": "static"
           },
           "kotlinVersion": "1.8.22"
         }
@@ -100,7 +124,8 @@
       "router": {},
       "eas": {
         "projectId": "b2933ba1-73b8-4f81-a078-5e5b1ed9d40d"
-      }
+      },
+      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyBcQg9AYubqXDgtiPoACyI7e0wp8ORJkHs"
     },
     "owner": "dawood2610"
   }

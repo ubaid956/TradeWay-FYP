@@ -145,10 +145,7 @@ const Jobs = () => {
     <View style={[globalStyles.container, { backgroundColor: '#f8f9fa' }]}>
       <HomeHeader title="Available Jobs" placeholder="Search jobs" orders={false} profile={true} />
       <View style={{ paddingHorizontal: width * 0.05, marginTop: 12, flex: 1 }}>
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Show assigned</Text>
-          <Switch value={includeAssigned} onValueChange={setIncludeAssigned} />
-        </View>
+    
         <FlatList
           data={jobs}
           keyExtractor={(item) => item._id}

@@ -119,6 +119,8 @@ export const getSellerOrders = async (req, res) => {
         const sellerId = req.user.id;
         const { page = 1, limit = 10, status } = req.query;
 
+        console.log('getSellerOrders: sellerId =', sellerId);
+
         const filter = { seller: sellerId };
         if (status) filter.status = status;
 
@@ -128,9 +130,19 @@ export const getSellerOrders = async (req, res) => {
             .populate('buyer', 'name email phone')
             .populate('product', 'title price images')
             .populate('bid', 'bidAmount quantity message')
+            .populate({
+                path: 'job',
+                select: 'status driver shipment',
+                populate: {
+                    path: 'driver',
+                    select: 'name phone'
+                }
+            })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
+
+        console.log('getSellerOrders: found', orders.length, 'orders');
 
         const total = await Order.countDocuments(filter);
 
@@ -169,6 +181,14 @@ export const getBuyerOrders = async (req, res) => {
             .populate('seller', 'name email phone')
             .populate('product', 'title price images')
             .populate('bid', 'bidAmount quantity message')
+            .populate({
+                path: 'job',
+                select: 'status driver shipment',
+                populate: {
+                    path: 'driver',
+                    select: 'name phone'
+                }
+            })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -205,7 +225,21 @@ export const getOrderById = async (req, res) => {
             .populate('buyer', 'name email phone')
             .populate('seller', 'name email phone')
             .populate('product', 'title price images specifications')
-            .populate('bid', 'bidAmount quantity message');
+            .populate('bid', 'bidAmount quantity message')
+            .populate({
+                path: 'job',
+                select: 'status driver shipment origin destination',
+                populate: [
+                    {
+                        path: 'driver',
+                        select: 'name phone'
+                    },
+                    {
+                        path: 'shipment',
+                        select: 'status vehicleNumber currentLocation estimatedDeliveryTime'
+                    }
+                ]
+            });
 
         if (!order) {
             return res.status(404).json({

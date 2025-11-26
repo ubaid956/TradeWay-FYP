@@ -17,7 +17,17 @@ const messageSchema = new mongoose.Schema({
   },
   text: {
     type: String,
-    required: true
+    required: true,
+    trim: true
+  },
+  type: {
+    type: String,
+    enum: ['text', 'invoice'],
+    default: 'text'
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   },
   isPrivate: {
     type: Boolean,

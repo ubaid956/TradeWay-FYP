@@ -1,7 +1,7 @@
 import Bid from '../models/Bid.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
-import Order from '../models/Order.js';
+import mongoose from 'mongoose';
 
 // Create a new bid
 export const createBid = async (req, res) => {
@@ -282,47 +282,10 @@ export const acceptBid = async (req, res) => {
             }
         );
 
-        // Mark product as sold
+        // Temporarily mark product inactive to prevent further bids while payment is pending
         await Product.findByIdAndUpdate(bid.product._id, {
-            isSold: true,
-            soldTo: bid.bidder,
-            soldPrice: bid.bidAmount,
-            soldAt: Date.now(),
             isActive: false
         });
-
-        // Create order automatically when bid is accepted
-        const unitPrice = bid.bidAmount;
-        const quantity = bid.quantity;
-        const totalAmount = unitPrice * quantity;
-        const shippingCost = bid.product.shipping?.shippingCost || 0;
-        const finalAmount = totalAmount + shippingCost;
-
-        const order = new Order({
-            buyer: bid.bidder,
-            seller: bid.product.seller,
-            product: bid.product._id,
-            bid: bidId,
-            orderDetails: {
-                quantity,
-                unitPrice,
-                totalAmount,
-                shippingCost,
-                finalAmount
-            },
-            payment: {
-                method: 'cash',
-                status: 'pending'
-            },
-            delivery: {
-                method: 'pickup',
-                estimatedDelivery: bid.product.shipping?.estimatedDelivery
-                    ? new Date(Date.now() + bid.product.shipping.estimatedDelivery * 24 * 60 * 60 * 1000)
-                    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default 7 days
-            }
-        });
-
-        await order.save();
 
         // Populate the accepted bid
         await bid.populate([
@@ -592,16 +555,31 @@ export const getVendorProposals = async (req, res) => {
 
         const bids = await Bid.find(filter)
             .populate('bidder', 'name email phone pic location')
-            .populate('product', 'title price images seller')
+            .populate('product', 'title price images seller shipping')
+            .populate('invoice')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
+
+        // For each bid, find if there's an associated order
+        const bidsWithOrders = await Promise.all(
+            bids.map(async (bid) => {
+                const order = await mongoose.model('Order').findOne({ bid: bid._id })
+                    .select('_id orderNumber status orderDate')
+                    .lean();
+                
+                return {
+                    ...bid.toObject(),
+                    order: order || null
+                };
+            })
+        );
 
         const total = await Bid.countDocuments(filter);
 
         res.json({
             success: true,
-            data: bids,
+            data: bidsWithOrders,
             pagination: {
                 currentPage: parseInt(page),
                 totalPages: Math.ceil(total / parseInt(limit)),

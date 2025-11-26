@@ -6,13 +6,17 @@ enableScreens();
 import { Stack } from 'expo-router';
 import { Provider } from 'react-redux';
 import { store } from '@/src/store';
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useAppDispatch } from '@/src/store/hooks';
 import { loadStoredAuth } from '@/src/store/slices/authSlice';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import apiService from '@/src/services/apiService';
 
 // We'll fetch the publishable key from the server at runtime instead of hard-coding it
+
+// Context to share Stripe readiness state
+const StripeReadyContext = createContext<boolean>(false);
+export const useStripeReady = () => useContext(StripeReadyContext);
 
 function AppContent() {
   const dispatch = useAppDispatch();
@@ -60,31 +64,22 @@ export default function RootLayout() {
     };
   }, []);
 
-  // While fetching the publishable key, render the app (without StripeProvider).
-  // Once the key is available, wrap the app with StripeProvider. If the key is missing,
-  // the app will continue to render but Stripe flows will not initialize.
-  if (loadingKey) {
-    return (
-      <Provider store={store}>
-        <AppContent />
-      </Provider>
-    );
-  }
+  // Always wrap with StripeProvider, but use a fallback key until the real one loads.
+  // This prevents crashes when PaymentSheet is accessed before key is fetched.
+  const effectiveKey = publishableKey || 'pk_test_placeholder';
+  const stripeReady = !loadingKey && !!publishableKey;
 
   return (
     <Provider store={store}>
-      {publishableKey ? (
+      <StripeReadyContext.Provider value={stripeReady}>
         <StripeProvider
-          publishableKey={publishableKey}
+          publishableKey={effectiveKey}
           merchantIdentifier={"merchant.YOUR_MERCHANT_ID"} // replace with your Apple Merchant ID
           urlScheme={"frontend"} // must match the scheme in app.json (used for 3DS/bank redirects)
         >
           <AppContent />
         </StripeProvider>
-      ) : (
-        // No publishable key returned — render app but Stripe won't be initialized.
-        <AppContent />
-      )}
+      </StripeReadyContext.Provider>
     </Provider>
   );
 }

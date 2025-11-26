@@ -2,6 +2,8 @@ import Product from '../models/Product.js';
 import { gradeMarbleImages, prepareInlineImages } from '../services/marbleGradingService.js';
 import { PRODUCT_GRADE_VALUES } from '../../shared/taxonomy.js';
 
+const isGradingConfigured = Boolean(process.env.AI_API_KEY);
+
 const normalizeGradeLabel = (grade) => (typeof grade === 'string' ? grade.trim().toLowerCase() : '');
 
 const applySpecificationGrade = (product, nextGrade) => {
@@ -41,6 +43,31 @@ export const gradeMarbleController = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Product not found.'
+      });
+    }
+
+    const gradingInitiatedAt = new Date();
+
+    if (!isGradingConfigured) {
+      const existingGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
+      product.grading = {
+        ...existingGrading,
+        status: 'skipped',
+        summary: 'Automatic grading is disabled. Configure AI_API_KEY to enable grading.',
+        requestedBy: req.user?._id || null,
+        requestedAt: gradingInitiatedAt,
+        completedAt: gradingInitiatedAt,
+        lastError: undefined
+      };
+
+      await product.save();
+
+      return res.json({
+        success: true,
+        data: product.grading,
+        meta: {
+          gradingDisabled: true
+        }
       });
     }
 
@@ -85,7 +112,7 @@ export const gradeMarbleController = async (req, res, next) => {
       additionalContext: promptContext
     });
 
-    const requestedAt = product.grading?.requestedAt || new Date();
+  const requestedAt = product.grading?.requestedAt || gradingInitiatedAt;
     const normalizedGrade = normalizeGradeLabel(structured.grade);
     const specGrade = PRODUCT_GRADE_VALUES.includes(normalizedGrade) ? normalizedGrade : undefined;
     applySpecificationGrade(product, specGrade);

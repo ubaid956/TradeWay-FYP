@@ -50,6 +50,9 @@ interface Proposal {
         title: string;
         price: number;
         images?: string[];
+        shipping?: {
+            shippingCost?: number;
+        };
     };
     bidAmount: number;
     quantity: number;
@@ -67,6 +70,22 @@ interface Proposal {
         message?: string;
         respondedAt?: string;
     };
+    invoice?: {
+        _id: string;
+        invoiceNumber: string;
+        status: 'sent' | 'paid' | 'cancelled';
+        totalAmount: number;
+        subtotal?: number;
+        shippingCost?: number;
+        paymentIntentId?: string;
+        paidAt?: string;
+    };
+    order?: {
+        _id: string;
+        orderNumber: string;
+        status: string;
+        orderDate: string;
+    } | null;
 }
 
 const statusColors = {
@@ -83,6 +102,7 @@ const formatActorLabel = (actor?: CounterActor) => {
 
 const VendorProposals = () => {
     const { token, user } = useAppSelector(state => state.auth);
+    
     const [proposals, setProposals] = useState<Proposal[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -94,6 +114,7 @@ const VendorProposals = () => {
     const [counterQuantity, setCounterQuantity] = useState('');
     const [counterMessage, setCounterMessage] = useState('');
     const [counterSubmitting, setCounterSubmitting] = useState(false);
+    const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null);
 
     const fetchProposals = useCallback(async (status?: string) => {
         try {
@@ -185,6 +206,40 @@ const VendorProposals = () => {
                             Alert.alert('Error', error.message || 'Failed to reject proposal');
                         } finally {
                             setProcessingId(null);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleSendInvoice = (proposal: Proposal) => {
+        const unitPrice = proposal.agreement?.amount || proposal.bidAmount;
+        const quantity = proposal.agreement?.quantity || proposal.quantity;
+        const shippingCost = proposal.product?.shipping?.shippingCost || 0;
+        const totalAmount = unitPrice * quantity + shippingCost;
+
+        Alert.alert(
+            'Send Invoice',
+            `Send an invoice of ${formatPrice(totalAmount)} to ${proposal.bidder.name}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send',
+                    onPress: async () => {
+                        try {
+                            setSendingInvoiceId(proposal._id);
+                            const response = await apiService.invoices.sendInvoice(proposal._id);
+                            if (!response.success) {
+                                throw new Error(response.error || 'Failed to send invoice');
+                            }
+
+                            Alert.alert('Invoice sent', 'The buyer has been notified.');
+                            fetchProposals(filter === 'all' ? undefined : filter);
+                        } catch (err: any) {
+                            Alert.alert('Error', err.message || 'Failed to send invoice');
+                        } finally {
+                            setSendingInvoiceId(null);
                         }
                     },
                 },
@@ -420,6 +475,11 @@ const VendorProposals = () => {
                                             {formatPrice(proposal.agreement.amount || proposal.bidAmount)} ·
                                             Qty {proposal.agreement.quantity || proposal.quantity}
                                         </Text>
+                                        {proposal.order && (
+                                            <Text style={styles.orderInfoText}>
+                                                Order #{proposal.order.orderNumber} • {proposal.order.status}
+                                            </Text>
+                                        )}
                                     </View>
                                 )}
 
@@ -458,6 +518,7 @@ const VendorProposals = () => {
                                             onPress={() => handleAccept(proposal)}
                                             disabled={isProcessing}
                                             small
+                                            style={{ flex: 1 }}
                                         />
                                         <View style={{ width: 10 }} />
                                         <CustomButton
@@ -466,6 +527,7 @@ const VendorProposals = () => {
                                             disabled={isProcessing}
                                             small
                                             login
+                                            style={{ flex: 1 }}
                                         />
                                     </View>
                                 )}
@@ -477,6 +539,44 @@ const VendorProposals = () => {
                                     >
                                         <Text style={styles.secondaryActionText}>Send Counter Offer</Text>
                                     </TouchableOpacity>
+                                )}
+
+                                {proposal.status === 'accepted' && (
+                                    <View style={styles.invoiceSection}>
+                                        {!proposal.invoice ? (
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.secondaryAction,
+                                                    sendingInvoiceId === proposal._id && styles.disabledAction,
+                                                ]}
+                                                onPress={() => handleSendInvoice(proposal)}
+                                                disabled={sendingInvoiceId === proposal._id}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.secondaryActionText,
+                                                        sendingInvoiceId === proposal._id && styles.disabledActionText,
+                                                    ]}
+                                                >
+                                                    {sendingInvoiceId === proposal._id ? 'Sending…' : 'Send Invoice'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <View style={styles.invoiceStatusCard}>
+                                                <Text style={styles.invoiceStatusTitle}>
+                                                    {proposal.invoice.invoiceNumber || 'Invoice'}
+                                                </Text>
+                                                <Text style={styles.invoiceStatusAmount}>
+                                                    {formatPrice(proposal.invoice.totalAmount)}
+                                                </Text>
+                                                <Text
+                                                    style={[styles.invoiceStatusLabel, proposal.invoice.status === 'paid' ? styles.invoiceStatusPaid : styles.invoiceStatusPending]}
+                                                >
+                                                    {proposal.invoice.status === 'paid' ? 'Paid' : 'Awaiting payment'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 )}
 
                                 {proposal.status === 'accepted' && proposal.sellerResponse?.message && (
@@ -491,16 +591,23 @@ const VendorProposals = () => {
                                 {proposal.status === 'accepted' && (
                                     <TouchableOpacity
                                         style={styles.secondaryAction}
-                                        onPress={() =>
+                                        onPress={() => {
+                                            const params: any = {
+                                                productId: proposal.product._id,
+                                                buyerId: proposal.bidder._id,
+                                                bidId: proposal._id,
+                                            };
+                                            
+                                            // Automatically include orderId if available
+                                            if (proposal.order?._id) {
+                                                params.orderId = proposal.order._id;
+                                            }
+                                            
                                             router.push({
                                                 pathname: '/VendorScreens/CreateCargo',
-                                                params: {
-                                                    productId: proposal.product._id,
-                                                    buyerId: proposal.bidder._id,
-                                                    bidId: proposal._id,
-                                                },
-                                            })
-                                        }
+                                                params,
+                                            });
+                                        }}
                                     >
                                         <Text style={styles.secondaryActionText}>Create Cargo Job</Text>
                                     </TouchableOpacity>
@@ -576,6 +683,7 @@ const VendorProposals = () => {
     );
 };
 
+export default VendorProposals;
 const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
@@ -622,26 +730,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#6b7280',
         marginTop: 8,
-    },
-    awaitingText: {
-        marginTop: 10,
-        color: '#92400E',
-        fontWeight: '500',
-    },
-    agreementBanner: {
-        marginTop: 12,
-        padding: 12,
-        borderRadius: 10,
-        backgroundColor: '#ECFDF5',
-    },
-    agreementTitle: {
-        fontWeight: '600',
-        fontSize: 14,
-        color: '#065F46',
-    },
-    agreementText: {
-        marginTop: 4,
-        color: '#047857',
+        textAlign: 'center',
     },
     proposalCard: {
         backgroundColor: '#fff',
@@ -697,11 +786,82 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginLeft: 4,
         textTransform: 'capitalize',
-    sectionTitle: {
+    },
+    productInfo: {
+        marginBottom: height * 0.015,
+        paddingBottom: height * 0.015,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb',
+    },
+    productTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    productPrice: {
+        fontSize: 14,
+        color: '#6b7280',
+    },
+    proposalDetails: {
+        marginTop: 8,
+        gap: 8,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    detailLabel: {
+        fontSize: 13,
+        color: '#6b7280',
+    },
+    detailValue: {
         fontSize: 14,
         fontWeight: '600',
         color: '#111827',
-        marginBottom: 8,
+    },
+    messageContainer: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: '#F9FAFB',
+    },
+    messageLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#4b5563',
+        marginBottom: 4,
+    },
+    messageText: {
+        fontSize: 13,
+        color: '#374151',
+        lineHeight: 18,
+    },
+    dateText: {
+        marginTop: 10,
+        fontSize: 12,
+        color: '#6b7280',
+    },
+    awaitingText: {
+        marginTop: 10,
+        color: '#92400E',
+        fontWeight: '500',
+    },
+    agreementBanner: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: '#ECFDF5',
+    },
+    agreementTitle: {
+        fontWeight: '600',
+        fontSize: 14,
+        color: '#065F46',
+    },
+    agreementText: {
+        marginTop: 4,
+        color: '#047857',
     },
     historyContainer: {
         marginTop: 16,
@@ -709,6 +869,12 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#e5e7eb',
         gap: 12,
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#111827',
+        marginBottom: 8,
     },
     historyRow: {
         flexDirection: 'row',
@@ -740,10 +906,10 @@ const styles = StyleSheet.create({
         color: '#374151',
         marginTop: 4,
     },
+    actionsContainer: {
+        flexDirection: 'row',
+        marginTop: 16,
     },
-    productInfo: {
-        marginBottom: height * 0.015,
-        paddingBottom: height * 0.015,
     secondaryAction: {
         marginTop: 12,
         paddingVertical: 12,
@@ -756,18 +922,57 @@ const styles = StyleSheet.create({
         color: '#0758C2',
         fontWeight: '600',
     },
-        borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
+    disabledAction: {
+        opacity: 0.6,
     },
-    productTitle: {
+    disabledActionText: {
+        color: '#9ca3af',
+    },
+    invoiceSection: {
+        marginTop: 12,
+        gap: 8,
+    },
+    invoiceStatusCard: {
+        padding: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        backgroundColor: '#F9FAFB',
+        gap: 4,
+    },
+    invoiceStatusTitle: {
+        fontWeight: '600',
+        color: '#111827',
+    },
+    invoiceStatusAmount: {
         fontSize: 16,
+        fontWeight: '700',
+        color: '#2563EB',
+    },
+    invoiceStatusLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    invoiceStatusPaid: {
+        color: '#047857',
+    },
+    invoiceStatusPending: {
+        color: '#92400E',
+    },
+    responseContainer: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: '#F3F4F6',
+    },
+    responseLabel: {
         fontWeight: '600',
         color: '#111827',
         marginBottom: 4,
     },
-    productPrice: {
-        fontSize: 14,
-        color: '#6b7280',
+    responseText: {
+        color: '#374151',
+        fontSize: 13,
     },
     modalBackdrop: {
         flex: 1,
@@ -798,98 +1003,42 @@ const styles = StyleSheet.create({
     },
     modalInput: {
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: '#d1d5db',
         borderRadius: 10,
         padding: 12,
         marginTop: 6,
+        fontSize: 15,
+        backgroundColor: '#fff',
     },
     modalActions: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         marginTop: 20,
         gap: 12,
     },
     modalButton: {
-        flex: 1,
-        paddingVertical: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
         borderRadius: 10,
-        alignItems: 'center',
     },
     modalCancelButton: {
-        borderWidth: 1,
-        borderColor: '#d1d5db',
-        backgroundColor: '#fff',
+        backgroundColor: '#f3f4f6',
     },
     modalPrimaryButton: {
         backgroundColor: '#0758C2',
     },
     modalCancelText: {
-        color: '#374151',
+        color: '#4b5563',
         fontWeight: '600',
     },
     modalPrimaryText: {
         color: '#fff',
-        fontWeight: '700',
+        fontWeight: '600',
     },
-    proposalDetails: {
-        marginBottom: height * 0.015,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    detailLabel: {
-        fontSize: 14,
+    orderInfoText: {
+        fontSize: 12,
         color: '#6b7280',
-    },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    messageContainer: {
-        marginTop: 8,
-        padding: 12,
-        backgroundColor: '#f9fafb',
-        borderRadius: 8,
-    },
-    messageLabel: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#6b7280',
-        marginBottom: 4,
-    },
-    messageText: {
-        fontSize: 14,
-        color: '#374151',
-    },
-    dateText: {
-        fontSize: 12,
-        color: '#9ca3af',
-        marginTop: 8,
-    },
-    actionsContainer: {
-        flexDirection: 'row',
-        marginTop: height * 0.015,
-    },
-    responseContainer: {
-        marginTop: height * 0.015,
-        padding: 12,
-        backgroundColor: '#d1fae5',
-        borderRadius: 8,
-    },
-    responseLabel: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#065f46',
-        marginBottom: 4,
-    },
-    responseText: {
-        fontSize: 14,
-        color: '#065f46',
+        marginTop: 4,
     },
 });
-
-export default VendorProposals;
 

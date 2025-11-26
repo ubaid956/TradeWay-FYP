@@ -62,9 +62,10 @@ export const loginUser = createAsyncThunk(
                     throw new Error('Missing token or user data in response');
                 }
 
-                // Store token in AsyncStorage
+                // Store token and user data in AsyncStorage
                 await AsyncStorage.setItem('token', token);
                 await AsyncStorage.setItem('user', JSON.stringify(user));
+                await AsyncStorage.setItem('userId', user._id);
 
                 return { token, user };
             } else {
@@ -103,9 +104,10 @@ export const registerUser = createAsyncThunk(
                     throw new Error('Missing token or user data in response');
                 }
 
-                // Store token in AsyncStorage
+                // Store token and user data in AsyncStorage
                 await AsyncStorage.setItem('token', token);
                 await AsyncStorage.setItem('user', JSON.stringify(user));
+                await AsyncStorage.setItem('userId', user._id);
 
                 return { token, user };
             } else {

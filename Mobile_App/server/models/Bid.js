@@ -71,8 +71,16 @@ const bidSchema = new mongoose.Schema({
     message: String,
     respondedAt: Date
   },
+  invoice: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Invoice',
+    default: null
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
+}, {
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Update the updatedAt field before saving
