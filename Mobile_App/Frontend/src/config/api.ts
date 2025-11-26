@@ -1,3 +1,6 @@
+import { Platform, NativeModules } from 'react-native';
+import Constants from 'expo-constants';
+
 // API Configuration
 // Centralized API URL management for the TradeWay app
 
@@ -21,16 +24,58 @@ const getEnvironment = (): 'development' | 'staging' | 'production' => {
 
 const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
+const extractHost = (value?: string | null): string | null => {
+    if (!value) {
+        return null;
+    }
+    const withoutProtocol = value.includes('://') ? value.split('://')[1] : value;
+    const hostWithOptionalPort = withoutProtocol.split('/')[0];
+    return hostWithOptionalPort.split(':')[0];
+};
+
+const getDevServerHost = (): string | null => {
+    if (!__DEV__) {
+        return null;
+    }
+
+    const manifestHost = extractHost(
+        (Constants as any)?.expoConfig?.hostUri ||
+            (Constants as any)?.manifest?.hostUri ||
+            (Constants as any)?.manifest?.debuggerHost ||
+            (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
+            Constants.experienceUrl
+    );
+    if (manifestHost) {
+        return manifestHost;
+    }
+
+    const scriptHost = extractHost(NativeModules?.SourceCode?.scriptURL);
+    if (scriptHost) {
+        return scriptHost;
+    }
+
+    return (
+        Platform.select({
+            android: '10.0.2.2',
+            ios: '127.0.0.1',
+            default: 'localhost',
+        }) || 'localhost'
+    );
+};
+
+const inferredDevHost = getDevServerHost();
+const inferredDevBaseUrl = inferredDevHost ? `http://${inferredDevHost}:5000/api` : 'http://localhost:5000/api';
+
 // API URLs for different environments
 const API_URLS = {
-    development: envBaseUrl || 'https://5w64q84c-5000.inc1.devtunnels.ms/api',
+    development: envBaseUrl || inferredDevBaseUrl,
     staging: envBaseUrl || 'https://staging-tradeway.example.com/api',
     production: envBaseUrl || 'https://api.tradeway.com/api',
 };
 
 // Local development URLs (fallback/testing)
 const LOCAL_URLS = {
-    development: envBaseUrl || 'http://localhost:5000/api',
+    development: envBaseUrl || inferredDevBaseUrl,
     staging: envBaseUrl || 'http://localhost:5001/api',
     production: envBaseUrl || 'http://localhost:5002/api',
 };

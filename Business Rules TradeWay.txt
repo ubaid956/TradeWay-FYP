@@ -1,0 +1,41 @@
+TradeWay Business Rules
+========================
+
+1. Account Roles and Verification
+   - Each account must belong to exactly one role: buyer, vendor, driver, or admin. Role changes require admin approval.
+   - Vendors and drivers must complete KYC verification before listing products, bidding, or accepting logistics jobs.
+   - A suspended or unverified account cannot create listings, place bids, or receive payouts until reinstated.
+
+2. Product Listings
+   - Every product listing must include a clear title, detailed description, category, price, quantity, and location before it can be published.
+   - Listings must contain at least one image that passes automated grading; rejected images require replacement before relisting.
+   - Vendors must maintain accurate inventory counts; a product automatically disables when quantity reaches zero.
+   - Duplicate listings (same product, identical specs, same vendor) are rejected to keep the catalog clean.
+
+3. Bidding and Orders
+   - Buyers can submit bids only on active, unsold products; bids lock for 24 hours or until the vendor responds.
+   - Vendors must accept, counter, or reject bids within 48 hours; stale bids auto-expire to protect inventory availability.
+   - Once a bid is accepted, an order record is created and the associated product quantity is reserved.
+   - Orders cannot be marked as fulfilled until both payment confirmation and shipment initiation are recorded.
+
+4. Pricing and Payments
+   - All prices must be in the platform’s base currency (PKR) and include applicable taxes; currency conversion is handled at checkout.
+   - Vendors cannot raise the price of an active listing by more than 20% within a 7-day period to prevent price gouging.
+   - Refunds above PKR 100,000 require admin approval and must reference a valid dispute or return case.
+
+5. Disputes and Compliance
+   - Dispute tickets must be opened within 7 days of delivery; evidence (photos, documents) is mandatory for escalation.
+   - Three unresolved disputes against the same vendor within 30 days automatically pauses their storefront pending review.
+   - Any detected fraudulent activity (fake bids, counterfeit goods, payment abuse) triggers immediate suspension and AML review.
+
+6. Logistics and Drivers
+   - Drivers must keep vehicle and license documents current; expired documents trigger automatic job lockout.
+   - A driver cannot accept more than two concurrent shipments unless manually approved by logistics staff.
+
+7. Notifications and Auditing
+   - Critical actions (listing published, bid accepted, order cancelled, payout released) must generate both in-app and email notifications.
+   - All admin overrides (price edits, user suspensions, dispute resolutions) must include a reason note for auditing.
+
+8. Data Retention
+   - Transaction and communication records are retained for a minimum of five years for compliance and analytics.
+   - Users can request data export, but deletion requests are honored only when all financial and legal obligations are closed.

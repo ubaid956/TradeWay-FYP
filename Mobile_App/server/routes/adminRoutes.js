@@ -1,6 +1,15 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
+import User from '../models/User.js';
+import Bid from '../models/Bid.js';
 import { linearRegression, predictNext } from '../utils/regression.js';
+import {
+  listDriverKycRequests,
+  getDriverKycRequest,
+  approveDriverKyc,
+  rejectDriverKyc,
+} from '../controllers/kycController.js';
 
 const router = Router();
 
@@ -65,6 +74,8 @@ function normalizeCategory(category) {
   const trimmed = category.trim();
   return CATEGORY_ALIAS[trimmed] || trimmed;
 }
+
+const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 router.get('/overview/cards', async (req, res) => {
   try {
@@ -351,5 +362,391 @@ router.get('/sellers/table', async (req, res) => {
     return res.status(500).json({ message: 'Failed to load sellers table' });
   }
 });
+
+router.get('/users', async (req, res) => {
+  try {
+    const {
+      search = '',
+      role,
+      page = '1',
+      limit = '20',
+      sort = '-createdAt'
+    } = req.query;
+
+    const numericLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const numericPage = Math.max(1, parseInt(page, 10) || 1);
+    const skip = (numericPage - 1) * numericLimit;
+
+    const match = {};
+    if (role) match.role = role;
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      match.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+    }
+
+    const allowedSortFields = new Set(['createdAt', 'name', 'role', 'lastActive']);
+    const sortField = sort?.replace('-', '') || 'createdAt';
+    const sortDirection = sort?.startsWith('-') ? -1 : 1;
+    const finalSortField = allowedSortFields.has(sortField) ? sortField : 'createdAt';
+
+    const [total, users] = await Promise.all([
+      User.countDocuments(match),
+      User.find(match)
+        .sort({ [finalSortField]: sortDirection })
+        .skip(skip)
+        .limit(numericLimit)
+        .select('-password')
+        .lean()
+    ]);
+
+    const userIds = users.map((user) => user._id);
+
+    const defaultSummary = {
+      products: { total: 0, active: 0, sold: 0 },
+      bidsPlaced: 0,
+      proposalsReceived: 0
+    };
+
+    if (userIds.length) {
+      const [productStats, bidStats, sellerProductDocs] = await Promise.all([
+        Product.aggregate([
+          { $match: { seller: { $in: userIds } } },
+          {
+            $group: {
+              _id: '$seller',
+              totalProducts: { $sum: 1 },
+              activeProducts: {
+                $sum: {
+                  $cond: [{ $eq: ['$isActive', true] }, 1, 0]
+                }
+              },
+              soldProducts: {
+                $sum: {
+                  $cond: [{ $eq: ['$isSold', true] }, 1, 0]
+                }
+              }
+            }
+          }
+        ]),
+        Bid.aggregate([
+          { $match: { bidder: { $in: userIds } } },
+          { $group: { _id: '$bidder', totalBids: { $sum: 1 } } }
+        ]),
+        Product.find({ seller: { $in: userIds } })
+          .select('_id seller')
+          .lean()
+      ]);
+
+      const productStatsMap = productStats.reduce((acc, row) => {
+        acc.set(row._id.toString(), row);
+        return acc;
+      }, new Map());
+
+      const bidStatsMap = bidStats.reduce((acc, row) => {
+        acc.set(row._id.toString(), row.totalBids);
+        return acc;
+      }, new Map());
+
+      const productSellerMap = sellerProductDocs.reduce((acc, doc) => {
+        acc.set(doc._id.toString(), doc.seller.toString());
+        return acc;
+      }, new Map());
+
+      const productIds = sellerProductDocs.map((doc) => doc._id);
+      let proposalStats = [];
+      if (productIds.length) {
+        proposalStats = await Bid.aggregate([
+          { $match: { product: { $in: productIds } } },
+          { $group: { _id: '$product', totalProposals: { $sum: 1 } } }
+        ]);
+      }
+
+      const proposalsByUser = proposalStats.reduce((acc, row) => {
+        const sellerId = productSellerMap.get(row._id.toString());
+        if (sellerId) {
+          acc.set(sellerId, (acc.get(sellerId) || 0) + row.totalProposals);
+        }
+        return acc;
+      }, new Map());
+
+      users.forEach((user) => {
+        const key = user._id.toString();
+        const productData = productStatsMap.get(key);
+        user.activitySummary = {
+          products: {
+            total: productData?.totalProducts || 0,
+            active: productData?.activeProducts || 0,
+            sold: productData?.soldProducts || 0
+          },
+          bidsPlaced: bidStatsMap.get(key) || 0,
+          proposalsReceived: proposalsByUser.get(key) || 0
+        };
+      });
+    } else {
+      users.forEach((user) => {
+        user.activitySummary = {
+          products: { ...defaultSummary.products },
+          bidsPlaced: defaultSummary.bidsPlaced,
+          proposalsReceived: defaultSummary.proposalsReceived
+        };
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page: numericPage,
+        limit: numericLimit,
+        total,
+        pages: Math.ceil(total / numericLimit) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Failed to load admin users:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load users', error: error.message });
+  }
+});
+
+router.get('/users/:userId/activity', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!isValidObjectId(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
+    const user = await User.findById(userId).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const [productSummaryRow, totalBids, productIdDocs] = await Promise.all([
+      Product.aggregate([
+        { $match: { seller: new mongoose.Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: '$seller',
+            totalProducts: { $sum: 1 },
+            activeProducts: {
+              $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
+            },
+            soldProducts: {
+              $sum: { $cond: [{ $eq: ['$isSold', true] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      Bid.countDocuments({ bidder: userId }),
+      Product.find({ seller: userId }).select('_id').lean()
+    ]);
+
+    const productIds = productIdDocs.map((doc) => doc._id);
+
+    const [products, bids, proposals, proposalCount] = await Promise.all([
+      Product.find({ seller: userId })
+        .sort({ createdAt: -1 })
+        .limit(25)
+        .lean(),
+      Bid.find({ bidder: userId })
+        .sort({ createdAt: -1 })
+        .limit(25)
+        .populate('product', 'title price quantity isActive isSold seller')
+        .lean(),
+      productIds.length
+        ? Bid.find({ product: { $in: productIds } })
+            .sort({ createdAt: -1 })
+            .limit(25)
+            .populate('bidder', 'name email phone location')
+            .populate('product', 'title price quantity seller')
+            .lean()
+        : [],
+      productIds.length ? Bid.countDocuments({ product: { $in: productIds } }) : 0
+    ]);
+
+    const summary = {
+      products: {
+        total: productSummaryRow?.[0]?.totalProducts || 0,
+        active: productSummaryRow?.[0]?.activeProducts || 0,
+        sold: productSummaryRow?.[0]?.soldProducts || 0
+      },
+      bidsPlaced: totalBids || 0,
+      proposalsReceived: proposalCount || 0
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        user,
+        summary,
+        products,
+        bids,
+        proposals
+      }
+    });
+  } catch (error) {
+    console.error('Failed to load admin user activity:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load user activity', error: error.message });
+  }
+});
+
+router.patch('/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
+    const updatableFields = ['name', 'email', 'phone', 'role', 'bio', 'location', 'language', 'isKYCVerified'];
+    const updates = {};
+    updatableFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(req.body, field) && req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (req.body?.driverProfile?.verificationStatus) {
+      updates['driverProfile.verificationStatus'] = req.body.driverProfile.verificationStatus;
+      if (req.body.driverProfile.verificationStatus === 'verified') {
+        updates['driverProfile.verifiedAt'] = new Date();
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'No valid fields provided for update' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+      runValidators: true
+    }).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: updatedUser });
+  } catch (error) {
+    console.error('Failed to update user:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update user', error: error.message });
+  }
+});
+
+router.delete('/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const products = await Product.find({ seller: userId }).select('_id');
+    const productIds = products.map((product) => product._id);
+
+    await Promise.all([
+      Bid.deleteMany({ bidder: userId }),
+      productIds.length ? Bid.deleteMany({ product: { $in: productIds } }) : Promise.resolve(),
+      productIds.length ? Product.deleteMany({ _id: { $in: productIds } }) : Promise.resolve()
+    ]);
+
+    await user.deleteOne();
+
+    return res.json({
+      success: true,
+      message: 'User and related records deleted',
+      removedProducts: productIds.length
+    });
+  } catch (error) {
+    console.error('Failed to delete user:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete user', error: error.message });
+  }
+});
+
+router.patch('/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({ success: false, message: 'Invalid product id' });
+    }
+
+    const allowedFields = [
+      'title',
+      'description',
+      'price',
+      'quantity',
+      'unit',
+      'category',
+      'tags',
+      'location',
+      'availability',
+      'shipping',
+      'isActive',
+      'isSold',
+      'soldPrice',
+      'soldAt'
+    ];
+
+    const updates = {};
+    allowedFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(req.body, field) && req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'No valid product fields provided' });
+    }
+
+    updates.updatedAt = new Date();
+
+    const product = await Product.findByIdAndUpdate(productId, updates, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    return res.json({ success: true, data: product });
+  } catch (error) {
+    console.error('Failed to update product:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update product', error: error.message });
+  }
+});
+
+router.delete('/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({ success: false, message: 'Invalid product id' });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    await Promise.all([
+      Bid.deleteMany({ product: productId }),
+      product.deleteOne()
+    ]);
+
+    return res.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete product:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete product', error: error.message });
+  }
+});
+
+router.get('/drivers/kyc', listDriverKycRequests);
+router.get('/drivers/kyc/:kycId', getDriverKycRequest);
+router.post('/drivers/kyc/:kycId/approve', approveDriverKyc);
+router.post('/drivers/kyc/:kycId/reject', rejectDriverKyc);
 
 export default router;

@@ -44,6 +44,34 @@ export const gradeMarbleController = async (req, res, next) => {
       });
     }
 
+    const currentGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
+    if (currentGrading && typeof currentGrading === 'object') {
+      delete currentGrading.metadata;
+    }
+
+    const aiConfigured = Boolean(process.env.AI_API_KEY);
+    if (!aiConfigured) {
+      const disabledMessage = 'AI grading is not configured on the server (missing AI_API_KEY). Product was posted without grading.';
+
+      product.grading = {
+        ...currentGrading,
+        status: 'failed',
+        grade: currentGrading?.grade,
+        requestedBy: req.user?._id || null,
+        requestedAt: new Date(),
+        completedAt: new Date(),
+        lastError: disabledMessage
+      };
+      await product.save();
+
+      return res.status(200).json({
+        success: true,
+        message: disabledMessage,
+        warning: disabledMessage,
+        data: product.grading
+      });
+    }
+
     const uploadedFiles = req.files?.images
       ? (Array.isArray(req.files.images) ? req.files.images : [req.files.images])
       : [];
@@ -62,11 +90,6 @@ export const gradeMarbleController = async (req, res, next) => {
         success: false,
         message: 'Provide at least one image via upload or imageUrls.'
       });
-    }
-
-    const currentGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
-    if (currentGrading && typeof currentGrading === 'object') {
-      delete currentGrading.metadata;
     }
 
     product.grading = {

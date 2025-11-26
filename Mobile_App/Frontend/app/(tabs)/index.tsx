@@ -91,8 +91,13 @@ const Home = () => {
   }, [transformedProducts]);
 
   const recommendedCards = useMemo(() => {
+    const seenIds = new Set();
     return recommendations
-      .filter(rec => rec.product)
+      .filter(rec => {
+        if (!rec.product || seenIds.has(rec.productId)) return false;
+        seenIds.add(rec.productId);
+        return true;
+      })
       .map(rec => {
         const product = rec.product!;
         const primaryImage =

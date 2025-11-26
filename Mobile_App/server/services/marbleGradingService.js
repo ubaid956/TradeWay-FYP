@@ -2,9 +2,41 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import fetch from 'node-fetch';
 
 const GRADING_PROMPT_VERSION = 'marble-grading-v1';
-const DEFAULT_MODEL = process.env.AI_GRADING_MODEL || process.env.AI_MODEL_NAME || 'gemini-2.0-flash';
+const FALLBACK_MODEL = 'gemini-2.5-flash';
+const SUPPORTED_MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-lite'
+];
+
+const resolveModelName = () => {
+  const candidate = process.env.AI_GRADING_MODEL || process.env.AI_MODEL_NAME;
+  if (!candidate) {
+    console.log('[Grading] No model specified in env, using fallback:', FALLBACK_MODEL);
+    return FALLBACK_MODEL;
+  }
+
+  const normalized = candidate.trim().toLowerCase();
+  if (!normalized || normalized === 'auto' || normalized === 'default') {
+    console.log('[Grading] Invalid model name, using fallback:', FALLBACK_MODEL);
+    return FALLBACK_MODEL;
+  }
+
+  // Check if model is supported
+  const modelMatch = SUPPORTED_MODELS.find(m => normalized.includes(m));
+  if (!modelMatch) {
+    console.warn(`[Grading] Model "${candidate}" may not be supported. Supported models: ${SUPPORTED_MODELS.join(', ')}. Using fallback: ${FALLBACK_MODEL}`);
+    return FALLBACK_MODEL;
+  }
+
+  console.log('[Grading] Using model:', candidate.trim());
+  return candidate.trim();
+};
+
+const DEFAULT_MODEL = resolveModelName();
 const API_KEY = process.env.AI_API_KEY;
-const API_VERSION = process.env.AI_API_VERSION || 'v1';
+const API_VERSION = process.env.AI_API_VERSION || 'v1beta';
+
+console.log('[Grading Service] Initialized with:', { model: DEFAULT_MODEL, apiVersion: API_VERSION, hasApiKey: !!API_KEY });
 const MAX_IMAGES = 5;
 
 let cachedModel;
@@ -15,14 +47,14 @@ const getModel = () => {
   }
 
   if (!cachedModel) {
-    const client = new GoogleGenerativeAI(API_KEY, { apiVersion: API_VERSION });
+    const client = new GoogleGenerativeAI(API_KEY);
     cachedModel = client.getGenerativeModel({
       model: DEFAULT_MODEL,
       generationConfig: {
         temperature: 0.2,
         topK: 32,
         topP: 0.8,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json'
       }
     });
@@ -208,6 +240,9 @@ export const gradeMarbleImages = async ({ product, inlineImages, additionalConte
   const model = getModel();
   const instructions = buildPrompt(product, additionalContext);
 
+  console.log('[Grading] Sending request to Gemini with', inlineImages.length, 'images');
+  console.log('[Grading] Model config:', { model: DEFAULT_MODEL, apiVersion: API_VERSION });
+
   const result = await model.generateContent({
     contents: [
       {
@@ -220,6 +255,13 @@ export const gradeMarbleImages = async ({ product, inlineImages, additionalConte
     ]
   });
 
+  console.log('[Grading] Received response from Gemini');
+  console.log('[Grading] Response structure:', {
+    hasResponse: !!result?.response,
+    hasCandidates: Array.isArray(result?.response?.candidates),
+    candidateCount: result?.response?.candidates?.length || 0
+  });
+
   const response = result?.response;
   let rawText = typeof response?.text === 'function' ? response.text() : '';
   if (!rawText && Array.isArray(response?.candidates)) {
@@ -229,12 +271,28 @@ export const gradeMarbleImages = async ({ product, inlineImages, additionalConte
       .join('\n');
   }
 
-  const cleaned = stripMarkdownJson(rawText);
-  if (!cleaned) {
-    throw new Error('Gemini returned an empty response for grading.');
+  console.log('[Grading] Raw text length:', rawText?.length || 0);
+  if (!rawText) {
+    console.error('[Grading] Empty response details:', JSON.stringify({
+      response: result?.response,
+      candidates: result?.response?.candidates
+    }, null, 2));
   }
 
+  const cleaned = stripMarkdownJson(rawText);
+  if (!cleaned) {
+    console.error('[Grading] Empty response after cleaning. This usually means:');
+    console.error('  1. Model is not available for the API version (check model + apiVersion compatibility)');
+    console.error('  2. API key lacks permissions or billing is not enabled');
+    console.error('  3. Images are too large or in unsupported format');
+    console.error('  Current config:', { model: DEFAULT_MODEL, apiVersion: API_VERSION });
+    
+    throw new Error(`Gemini returned empty response. Model: ${DEFAULT_MODEL}, API Version: ${API_VERSION}. Check server logs for details.`);
+  }
+
+  console.log('[Grading] Parsing JSON response...');
   const parsed = parseJsonOrThrow(cleaned);
+  console.log('[Grading] Successfully parsed response. Grade:', parsed.grade);
 
   return {
     structured: {
