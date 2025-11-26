@@ -1,6 +1,23 @@
 // models/User.js
 import mongoose from 'mongoose';
 
+const driverProfileSchema = new mongoose.Schema(
+  {
+    cnicNumber: { type: String },
+    licenseNumber: { type: String },
+    truckRegistrationNumber: { type: String },
+    verificationStatus: {
+      type: String,
+      enum: ['unverified', 'pending', 'verified', 'rejected'],
+      default: 'unverified'
+    },
+    verificationNote: { type: String },
+    verificationRequestedAt: { type: Date },
+    verifiedAt: { type: Date }
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true, sparse: true },
@@ -31,6 +48,10 @@ const userSchema = new mongoose.Schema({
   language: { type: String, default: 'en' },
   rating: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
+  driverProfile: {
+    type: driverProfileSchema,
+    default: undefined
+  },
   otp: {
     type: String,
     default: null

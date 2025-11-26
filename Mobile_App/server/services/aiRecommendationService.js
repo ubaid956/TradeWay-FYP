@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const modelName = process.env.AI_MODEL_NAME || 'gemini-2.5-flash';
+const modelName = process.env.AI_MODEL_NAME || 'gemini-2.5-flash-lite';
 const apiKey = process.env.AI_API_KEY;
-const apiVersion = process.env.AI_API_VERSION || 'v1';
+const apiVersion = process.env.AI_API_VERSION || 'v1beta';
 
 let cachedModel;
 
@@ -12,14 +12,14 @@ const getModel = () => {
   }
 
   if (!cachedModel) {
-    const client = new GoogleGenerativeAI(apiKey, { apiVersion });
+    const client = new GoogleGenerativeAI(apiKey);
     cachedModel = client.getGenerativeModel({
       model: modelName,
       generationConfig: {
         temperature: 0.7,
         topK: 32,
         topP: 0.8,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
       },
     });
@@ -86,6 +86,9 @@ Instructions:
     const cleaned = stripMarkdownJson(rawText);
     if (!cleaned) {
       console.error('AI recommendation warning: empty response body');
+      if (response?.candidates?.[0]?.finishReason) {
+        console.error('Finish reason:', response.candidates[0].finishReason);
+      }
       return buildFallback(products, safeLimit);
     }
 
@@ -95,7 +98,16 @@ Instructions:
       throw new Error('AI response was not an array');
     }
 
-    const normalized = parsed.slice(0, safeLimit).filter((entry) => entry?.productId);
+    const uniqueIds = new Set();
+    const normalized = [];
+
+    for (const entry of parsed) {
+      if (entry?.productId && !uniqueIds.has(entry.productId)) {
+        uniqueIds.add(entry.productId);
+        normalized.push(entry);
+      }
+      if (normalized.length >= safeLimit) break;
+    }
 
     if (!normalized.length) {
       return buildFallback(products, safeLimit);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { globalStyles } from '@/Styles/globalStyles';
 import CustomHeader from '../Components/Headers/CustomHeader';
 import ProductCard from '../Components/HomePage/FeatureCard';
@@ -41,9 +41,11 @@ const AllProducts = () => {
   const { products, isLoading, error } = useAppSelector(state => state.product);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    dispatch(fetchProducts({ limit: PRODUCT_FETCH_LIMIT, page: 1 }));
-  }, [dispatch]);
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchProducts({ limit: PRODUCT_FETCH_LIMIT, page: 1 }));
+    }, [dispatch])
+  );
 
   const catalogProducts = useMemo<CatalogProduct[]>(() => {
     return products.map(product => {

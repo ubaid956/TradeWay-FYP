@@ -31,7 +31,8 @@ export const register = async (req, res) => {
       email,
       password: hashedPassword,
       phone,
-      role: requestedRole
+      role: requestedRole,
+      driverProfile: requestedRole === 'driver' ? { verificationStatus: 'unverified' } : undefined
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {

@@ -6,8 +6,9 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import PriceIndex from "./pages/PriceIndex";
 import Forecasts from "./pages/Forecasts";
-import Sellers from "./pages/Sellers";
+import Users from "./pages/Users";
 import IndustryUpdates from "./pages/IndustryUpdates";
+import DriverVerifications from "./pages/DriverVerifications";
 import Login from "./pages/Login";
 
 export default function App() {
@@ -60,12 +61,16 @@ export default function App() {
 											element={<Forecasts />}
 										/>
 										<Route
-											path="sellers"
-											element={<Sellers />}
+											path="users"
+											element={<Users />}
 										/>
 										<Route
 											path="industry-updates"
 											element={<IndustryUpdates />}
+										/>
+										<Route
+											path="driver-verifications"
+											element={<DriverVerifications />}
 										/>
 									</Routes>
 								</div>

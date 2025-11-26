@@ -323,10 +323,12 @@ const ViewProduct = () => {
                     <Text style={styles.title}>{product.title || 'Untitled Product'}</Text>
 
                     {(resolvedGrade || product?.grading) && (
-                        <View style={[styles.gradeBadge, {
-                            backgroundColor: currentGradeSwatch.bg,
-                            borderColor: currentGradeSwatch.text,
-                        }]}> 
+                        <View
+                            style={[styles.gradeBadge, {
+                                backgroundColor: currentGradeSwatch.bg,
+                                borderColor: currentGradeSwatch.text,
+                            }]}
+                        >
                             <Text style={[styles.gradeBadgeText, { color: currentGradeSwatch.text }]}>
                                 {(resolvedGrade || 'Pending').toUpperCase()}
                             </Text>

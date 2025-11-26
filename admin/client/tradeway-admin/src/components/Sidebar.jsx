@@ -34,16 +34,22 @@ export default function Sidebar() {
 				Forecasts
 			</NavLink>
 			<NavLink
-				to="/sellers"
+				to="/users"
 				style={linkStyle}
 			>
-				Sellers
+				Users
 			</NavLink>
 			<NavLink
 				to="/industry-updates"
 				style={linkStyle}
 			>
 				Industry Updates
+			</NavLink>
+			<NavLink
+				to="/driver-verifications"
+				style={linkStyle}
+			>
+				Driver Verifications
 			</NavLink>
 		</div>
 	);

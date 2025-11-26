@@ -1,3 +1,6 @@
+import { Platform, NativeModules } from 'react-native';
+import Constants from 'expo-constants';
+
 // API Configuration
 // Centralized API URL management for the TradeWay app
 

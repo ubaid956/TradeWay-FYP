@@ -48,22 +48,31 @@ export const gradeMarbleController = async (req, res, next) => {
 
     const gradingInitiatedAt = new Date();
 
+    const currentGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
+    if (currentGrading && typeof currentGrading === 'object') {
+      delete currentGrading.metadata;
+    }
+
     if (!isGradingConfigured) {
-      const existingGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
+      const disabledMessage = 'AI grading is not configured on the server (missing AI_API_KEY). Product was posted without grading.';
+
       product.grading = {
-        ...existingGrading,
+        ...currentGrading,
         status: 'skipped',
-        summary: 'Automatic grading is disabled. Configure AI_API_KEY to enable grading.',
+        summary: disabledMessage,
+        grade: currentGrading?.grade,
         requestedBy: req.user?._id || null,
         requestedAt: gradingInitiatedAt,
         completedAt: gradingInitiatedAt,
-        lastError: undefined
+        lastError: disabledMessage
       };
 
       await product.save();
 
-      return res.json({
+      return res.status(200).json({
         success: true,
+        message: disabledMessage,
+        warning: disabledMessage,
         data: product.grading,
         meta: {
           gradingDisabled: true
@@ -89,11 +98,6 @@ export const gradeMarbleController = async (req, res, next) => {
         success: false,
         message: 'Provide at least one image via upload or imageUrls.'
       });
-    }
-
-    const currentGrading = product.grading?.toObject ? product.grading.toObject() : (product.grading || {});
-    if (currentGrading && typeof currentGrading === 'object') {
-      delete currentGrading.metadata;
     }
 
     product.grading = {
