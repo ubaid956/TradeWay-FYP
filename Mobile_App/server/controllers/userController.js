@@ -10,7 +10,7 @@ import admin from 'firebase-admin';
 // @desc    Register new user
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, password, role } = req.body;
+    const { name, email, phone, password, role, pushToken } = req.body;
 
     const allowedRoles = ['buyer', 'vendor', 'driver'];
     const requestedRole = allowedRoles.includes(role) ? role : 'buyer';
@@ -32,6 +32,7 @@ export const register = async (req, res) => {
       password: hashedPassword,
       phone,
       role: requestedRole,
+      pushToken: pushToken || null,
       driverProfile: requestedRole === 'driver' ? { verificationStatus: 'unverified' } : undefined
     });
 
@@ -40,6 +41,9 @@ export const register = async (req, res) => {
     });
     const userWithoutPassword = { ...user._doc };
     delete userWithoutPassword.password;
+
+    // Update lastActive
+    await User.findByIdAndUpdate(user._id, { lastActive: new Date() });
 
     res.json({
       ...userWithoutPassword,
@@ -53,7 +57,7 @@ export const register = async (req, res) => {
 // @desc    Authenticate user
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, pushToken } = req.body;
 
     // 1. Check if user exists
     const user = await User.findOne({ email }).select('+password'); // Explicitly select password
@@ -70,6 +74,13 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+
+    // Update push token if provided and lastActive
+    if (pushToken) {
+      user.pushToken = pushToken;
+    }
+    user.lastActive = new Date();
+    await user.save();
 
     // 3. Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -92,7 +103,7 @@ export const login = async (req, res) => {
 
 
 export const googleSignIn = async (req, res) => {
-  const { token } = req.body;
+  const { token, pushToken } = req.body;
 
   try {
     console.log('Firebase Google Sign-In attempt with token:', token ? 'Token received' : 'No token');
@@ -123,8 +134,15 @@ export const googleSignIn = async (req, res) => {
         authType: 'google',
         password: 'google_auth', // just to satisfy required field
         role: 'buyer', // Default role for Google sign-in users
+        pushToken: pushToken || null,
       });
     }
+    // Update push token and lastActive for existing user
+    if (pushToken) {
+      user.pushToken = pushToken;
+    }
+    user.lastActive = new Date();
+    await user.save();
 
     // 3. Generate JWT for your app
     const appToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {

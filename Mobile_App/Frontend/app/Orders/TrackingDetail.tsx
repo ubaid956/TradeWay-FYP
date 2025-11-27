@@ -99,27 +99,27 @@ export default function OrderTrackingDetail() {
       const transformedShipment: ShipmentData = {
         id: backendShipment.id,
         orderId: backendShipment.orderId,
-        driverName: backendShipment.driverName,
-        driverPhone: backendShipment.driverPhone,
-        vehicleNumber: backendShipment.vehicleNumber,
+        driverName: backendShipment.driverName || 'Unknown Driver',
+        driverPhone: backendShipment.driverPhone || 'N/A',
+        vehicleNumber: backendShipment.vehicleNumber || 'N/A',
         origin: {
-          address: backendShipment.origin.address,
+          address: backendShipment.origin?.address || 'Unknown Location',
           location: {
-            latitude: backendShipment.origin.location.coordinates[1],
-            longitude: backendShipment.origin.location.coordinates[0],
+            latitude: backendShipment.origin?.location?.coordinates?.[1] || 0,
+            longitude: backendShipment.origin?.location?.coordinates?.[0] || 0,
           },
-          name: backendShipment.origin.name,
+          name: backendShipment.origin?.name,
         },
         destination: {
-          address: backendShipment.destination.address,
+          address: backendShipment.destination?.address || 'Unknown Destination',
           location: {
-            latitude: backendShipment.destination.location.coordinates[1],
-            longitude: backendShipment.destination.location.coordinates[0],
+            latitude: backendShipment.destination?.location?.coordinates?.[1] || 0,
+            longitude: backendShipment.destination?.location?.coordinates?.[0] || 0,
           },
-          name: backendShipment.destination.name,
+          name: backendShipment.destination?.name,
         },
         estimatedDeliveryTime: new Date(backendShipment.estimatedDeliveryTime),
-        currentStatus: backendShipment.currentStatus,
+        currentStatus: backendShipment.currentStatus || 'unknown',
         statusHistory: backendShipment.statusHistory || [],
         distance: backendShipment.distance,
         items: backendShipment.items || [],
@@ -347,15 +347,15 @@ export default function OrderTrackingDetail() {
           <Text style={styles.cardTitle}>Driver Information</Text>
           <View style={styles.infoRow}>
             <Ionicons name="person-outline" size={20} color="#6b7280" />
-            <Text style={styles.infoText}>{shipment.driverName}</Text>
+            <Text style={styles.infoText}>{shipment.driverName || 'N/A'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="call-outline" size={20} color="#6b7280" />
-            <Text style={styles.infoText}>{shipment.driverPhone}</Text>
+            <Text style={styles.infoText}>{shipment.driverPhone || 'N/A'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="car-outline" size={20} color="#6b7280" />
-            <Text style={styles.infoText}>{shipment.vehicleNumber}</Text>
+            <Text style={styles.infoText}>{shipment.vehicleNumber || 'N/A'}</Text>
           </View>
         </View>
 
@@ -366,7 +366,7 @@ export default function OrderTrackingDetail() {
             <Ionicons name="location-outline" size={20} color="#10b981" />
             <View style={styles.locationInfo}>
               <Text style={styles.locationLabel}>Pickup</Text>
-              <Text style={styles.locationText}>{shipment.origin.address}</Text>
+              <Text style={styles.locationText}>{shipment.origin?.address || 'N/A'}</Text>
             </View>
           </View>
           <View style={styles.locationDivider} />
@@ -374,7 +374,7 @@ export default function OrderTrackingDetail() {
             <Ionicons name="flag-outline" size={20} color="#ef4444" />
             <View style={styles.locationInfo}>
               <Text style={styles.locationLabel}>Delivery</Text>
-              <Text style={styles.locationText}>{shipment.destination.address}</Text>
+              <Text style={styles.locationText}>{shipment.destination?.address || 'N/A'}</Text>
             </View>
           </View>
           {shipment.distance && (

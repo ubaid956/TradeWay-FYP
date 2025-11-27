@@ -9,7 +9,7 @@ const groupSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Work', 'Friends', 'Family', 'Custom'],
+    enum: ['Work', 'Friends', 'Family', 'Custom', 'dispute'],
     default: 'Custom'
   },
   members: [{

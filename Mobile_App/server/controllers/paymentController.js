@@ -5,6 +5,8 @@ import Bid from '../models/Bid.js';
 import Product from '../models/Product.js';
 import Message from '../models/Message.js';
 import dotenv from 'dotenv';
+import User from '../models/User.js';
+import { sendPushToUsers } from '../utils/push.js';
 
 dotenv.config();
 
@@ -292,6 +294,28 @@ export const processInvoicePayment = async (req, res) => {
       }
     }
 
+    // Push notifications: payment success and order creation
+    try {
+      const buyer = await User.findById(invoice.buyer).select('pushToken');
+      const seller = await User.findById(invoice.seller).select('pushToken');
+      if (buyer?.pushToken) {
+        await sendPushToUsers([buyer], {
+          title: 'Payment successful',
+          body: `Your payment for invoice ${invoice.invoiceNumber} was successful`,
+          data: { type: 'payment_success', invoiceId: String(invoice._id), orderId: String(invoice.order || '') }
+        });
+      }
+      if (seller?.pushToken && invoice.order) {
+        await sendPushToUsers([seller], {
+          title: 'New order received',
+          body: `A new order has been created from a paid invoice`,
+          data: { type: 'order_created', orderId: String(invoice.order) }
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('Push notify (manual payment) failed:', notifyErr?.message || notifyErr);
+    }
+
     return res.json({ success: true, message: 'Invoice processed successfully', data: invoice });
   } catch (error) {
     console.error('processInvoicePayment error:', error);
@@ -398,6 +422,28 @@ export const stripeWebhook = async (req, res) => {
             }
 
             await invoice.save();
+
+            // Push notifications via webhook: payment success and order creation
+            try {
+              const buyer = await User.findById(invoice.buyer).select('pushToken');
+              const seller = await User.findById(invoice.seller).select('pushToken');
+              if (buyer?.pushToken) {
+                await sendPushToUsers([buyer], {
+                  title: 'Payment successful',
+                  body: `Your payment for invoice ${invoice.invoiceNumber} was successful`,
+                  data: { type: 'payment_success', invoiceId: String(invoice._id), orderId: String(invoice.order || '') }
+                });
+              }
+              if (seller?.pushToken && invoice.order) {
+                await sendPushToUsers([seller], {
+                  title: 'New order received',
+                  body: `A new order has been created from a paid invoice`,
+                  data: { type: 'order_created', orderId: String(invoice.order) }
+                });
+              }
+            } catch (notifyErr) {
+              console.warn('Push notify (webhook payment) failed:', notifyErr?.message || notifyErr);
+            }
 
             if (invoice.messageId) {
               await Message.findByIdAndUpdate(invoice.messageId, {

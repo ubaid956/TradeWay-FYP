@@ -51,6 +51,12 @@ export default function Sidebar() {
 			>
 				Driver Verifications
 			</NavLink>
+			<NavLink
+				to="/disputes"
+				style={linkStyle}
+			>
+				Disputes
+			</NavLink>
 		</div>
 	);
 }

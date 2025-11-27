@@ -1,6 +1,8 @@
 import Invoice from '../models/Invoice.js';
 import Bid from '../models/Bid.js';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
+import { sendPushToUsers } from '../utils/push.js';
 
 export const createInvoiceFromBid = async (req, res) => {
   try {
@@ -116,6 +118,20 @@ export const createInvoiceFromBid = async (req, res) => {
       path: 'sender recipient',
       select: 'name pic'
     });
+
+    // Push notification to buyer
+    try {
+      const buyerUser = await User.findById(bid.bidder?._id || bid.bidder).select('pushToken');
+      if (buyerUser?.pushToken) {
+        await sendPushToUsers([buyerUser], {
+          title: 'Invoice received',
+          body: `Invoice ${invoice.invoiceNumber} for ${bid.product.title}`,
+          data: { type: 'invoice_sent', invoiceId: String(invoice._id), bidId: String(bid._id) }
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('Push notify (invoice) failed:', notifyErr?.message || notifyErr);
+    }
 
     return res.status(201).json({
       success: true,

@@ -246,7 +246,8 @@ const Order = () => {
               total={total}
               estimatedDelivery={estimatedDelivery}
               productImage={productImage}
-              onPressViewDetails={() => router.push({ pathname: '/order/[id]', params: { id: String(mongoId) } })}
+              // Navigate to the Orders detail screen (case-sensitive path)
+              onPressViewDetails={() => router.push({ pathname: '/Orders/[id]', params: { id: String(mongoId) } })}
             />
           );
         })}

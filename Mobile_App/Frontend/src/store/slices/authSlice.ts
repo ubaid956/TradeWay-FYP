@@ -39,7 +39,7 @@ const initialState: AuthState = {
 // Async thunks for authentication
 export const loginUser = createAsyncThunk(
     'auth/loginUser',
-    async (credentials: { email: string; password: string }, { rejectWithValue }) => {
+    async (credentials: { email: string; password: string; pushToken?: string | null }, { rejectWithValue }) => {
         try {
             const response = await apiService.auth.login(credentials);
 
@@ -81,9 +81,10 @@ export const loginUser = createAsyncThunk(
 
 export const registerUser = createAsyncThunk(
     'auth/registerUser',
-    async (userData: { name: string; email: string; password: string; phone?: string; role?: string }, { rejectWithValue }) => {
+    async (userData: { name: string; email: string; password: string; phone?: string; role?: string; pushToken?: string | null }, { rejectWithValue }) => {
         try {
-            const response = await apiService.auth.register(userData);
+            const payload = { ...userData, role: userData.role || 'buyer' } as any;
+            const response = await apiService.auth.register(payload);
 
             if (!response.success) {
                 throw new Error(response.error || 'Registration failed');
@@ -123,7 +124,7 @@ export const registerUser = createAsyncThunk(
 
 export const googleLoginUser = createAsyncThunk(
     'auth/googleLoginUser',
-    async (firebaseToken: string, { rejectWithValue }) => {
+    async ({ firebaseToken, pushToken }: { firebaseToken: string; pushToken?: string | null }, { rejectWithValue }) => {
         try {
             console.log('Starting Google login process with Redux...');
 
@@ -132,7 +133,7 @@ export const googleLoginUser = createAsyncThunk(
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ token: firebaseToken }),
+                body: JSON.stringify({ token: firebaseToken, pushToken }),
             });
 
             // Try to parse JSON, but handle non-JSON responses gracefully
@@ -142,7 +143,7 @@ export const googleLoginUser = createAsyncThunk(
                 bodyText = await response.text();
                 bodyJson = bodyText ? JSON.parse(bodyText) : null;
             } catch (parseErr) {
-                console.warn('Failed to parse JSON from /api/auth/google response:', parseErr.message);
+                console.warn('Failed to parse JSON from /api/auth/google response:', String(parseErr));
                 console.log('Raw response text:', bodyText);
             }
 
@@ -260,12 +261,12 @@ export const updateUserProfile = createAsyncThunk(
             }
 
             // Update AsyncStorage with the complete user data from response
-            if (response.data && response.data.user) {
-                await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-                return response.data.user; // Return the complete user data
+            if (response.data) {
+                await AsyncStorage.setItem('user', JSON.stringify(response.data));
+                return response.data as any; // Return the complete user data
             }
 
-            return profileData;
+            return profileData as any;
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -294,7 +295,7 @@ const authSlice = createSlice({
             })
             .addCase(loginUser.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.user = action.payload.user;
+                state.user = action.payload.user as any;
                 state.token = action.payload.token;
                 state.isAuthenticated = true;
                 state.error = null;
@@ -311,7 +312,7 @@ const authSlice = createSlice({
             })
             .addCase(registerUser.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.user = action.payload.user;
+                state.user = action.payload.user as any;
                 state.token = action.payload.token;
                 state.isAuthenticated = true;
                 state.error = null;

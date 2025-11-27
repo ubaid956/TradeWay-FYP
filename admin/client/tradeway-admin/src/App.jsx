@@ -9,6 +9,7 @@ import Forecasts from "./pages/Forecasts";
 import Users from "./pages/Users";
 import IndustryUpdates from "./pages/IndustryUpdates";
 import DriverVerifications from "./pages/DriverVerifications";
+import Disputes from "./pages/Disputes";
 import Login from "./pages/Login";
 
 export default function App() {
@@ -71,6 +72,10 @@ export default function App() {
 										<Route
 											path="driver-verifications"
 											element={<DriverVerifications />}
+										/>
+										<Route
+											path="disputes"
+											element={<Disputes />}
 										/>
 									</Routes>
 								</div>

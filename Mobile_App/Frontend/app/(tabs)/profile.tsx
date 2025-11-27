@@ -30,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
 // import { logoutUser, updateUserProfile, fetchUserProfile } from '../store/slices/authSlice';
 import { logoutUser , updateUserProfile, fetchUserProfile} from '@/src/store/slices/authSlice';
+import { statsService } from '@/src/services/stats';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,6 +47,7 @@ const Profile = () => {
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
 
   // Function to reload profile data
   const reloadProfile = useCallback(async () => {
@@ -293,6 +295,15 @@ const Profile = () => {
         if (reduxUser) {
           setUser(reduxUser);
           setLoading(false);
+          
+          // Fetch stats based on role
+          if (reduxUser.role === 'vendor') {
+            const vendorStats = await statsService.getVendorStats();
+            setStats(vendorStats);
+          } else if (reduxUser.role === 'buyer') {
+            const buyerStats = await statsService.getBuyerStats();
+            setStats(buyerStats);
+          }
           return;
         }
 
@@ -301,6 +312,15 @@ const Profile = () => {
         if (userDataString) {
           const userData = JSON.parse(userDataString);
           setUser(userData);
+          
+          // Fetch stats based on role
+          if (userData.role === 'vendor') {
+            const vendorStats = await statsService.getVendorStats();
+            setStats(vendorStats);
+          } else if (userData.role === 'buyer') {
+            const buyerStats = await statsService.getBuyerStats();
+            setStats(buyerStats);
+          }
         }
       } catch (error) {
         console.log('Failed to load user data:', error);
@@ -416,16 +436,20 @@ const Profile = () => {
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>124</Text>
-            <Text style={styles.statLabel}>Listings</Text>
+            <Text style={styles.statValue}>
+              {user.role === 'vendor' ? (stats?.totalListings || 0) : (stats?.totalOrders || 0)}
+            </Text>
+            <Text style={styles.statLabel}>{user.role === 'vendor' ? 'Listings' : 'Orders'}</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{user.rating || 0} ⭐</Text>
+            <Text style={styles.statValue}>{stats?.rating || user.rating || 0} ⭐</Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>87</Text>
-            <Text style={styles.statLabel}>Deals</Text>
+            <Text style={styles.statValue}>
+              {user.role === 'vendor' ? (stats?.totalOrders || 0) : (stats?.completedOrders || 0)}
+            </Text>
+            <Text style={styles.statLabel}>{user.role === 'vendor' ? 'Orders' : 'Completed'}</Text>
           </View>
         </View>
 
@@ -459,18 +483,12 @@ const Profile = () => {
               iconName="location-pin"
               text={user.location || "Location not provided"}
             />
-            {isDriver ? (
+            {isDriver && (
               <Profile_cart
                 onPress={() => router.push('/Profile_Pages/DriverKyc')}
                 iconComponent={MaterialIcons}
                 iconName={user.isKYCVerified ? "verified" : "fact-check"}
                 text={user.isKYCVerified ? "Driver KYC • Approved" : "Driver KYC Verification"}
-              />
-            ) : (
-              <Profile_cart
-                iconComponent={MaterialIcons}
-                iconName={user.isKYCVerified ? "verified" : "warning"}
-                text={user.isKYCVerified ? "KYC Verified" : "KYC Not Verified"}
               />
             )}
 
@@ -490,16 +508,13 @@ const Profile = () => {
               text="Track Orders"
             />
             <Profile_cart
+              onPress={() => router.push('/Profile_Pages/DisputesList')}
               iconComponent={MaterialIcons}
-              iconName="receipt"
-              text="Recent Transactions"
-
+              iconName="report-problem"
+              text="View My Disputes"
             />
-            <Profile_cart
-              iconComponent={MaterialIcons}
-              iconName="bookmark-outline"
-              text="Saved Items"
-            />
+          
+            
             <Profile_cart
               iconComponent={MaterialIcons}
               iconName="star"
@@ -532,12 +547,7 @@ const Profile = () => {
             SETTINGS & SUPPORT
           </Text>
           <View style={{ backgroundColor: '#f4f4f4' }}>
-            <Profile_cart
-              iconComponent={MaterialIcons}
-              iconName="settings"
-              text="Account Settings"
-
-            />
+        
             <Profile_cart
               onPress={() => router.push('/Profile_Pages/HelpCenter')}
               iconComponent={MaterialIcons}

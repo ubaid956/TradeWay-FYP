@@ -25,7 +25,7 @@ const ForgotPassword = () => {
         setLoading(true);
         setErrorMessage('');
         try {
-            const res = await axios.post('https://3d488f18f175.ngrok-free.app/api/auth/users/forgot', { email });
+            const res = await axios.post('https://m1p2hrxd-5000.asse.devtunnels.ms/api/auth/users/forgot', { email });
 
             if (res.status === 200) {
                 navigation.navigate('Signup-Login/Verification', { email });

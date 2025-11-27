@@ -2,6 +2,7 @@ import Bid from '../models/Bid.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
+import { sendPushToUsers } from '../utils/push.js';
 
 // Create a new bid
 export const createBid = async (req, res) => {
@@ -98,6 +99,20 @@ export const createBid = async (req, res) => {
             { path: 'bidder', select: 'name email phone' },
             { path: 'product', select: 'title price seller' }
         ]);
+
+        // Notify vendor (seller) that a new proposal has been submitted by buyer
+        try {
+            const sellerUser = await User.findById(product.seller).select('pushToken');
+            if (sellerUser?.pushToken) {
+                await sendPushToUsers([sellerUser], {
+                    title: 'New proposal received',
+                    body: `${bid.bidder?.name || 'A buyer'} sent an offer for ${product.title}`,
+                    data: { type: 'bid_created', productId: String(product._id), bidId: String(bid._id) }
+                });
+            }
+        } catch (notifyErr) {
+            console.warn('Push notify (bid create) failed:', notifyErr?.message || notifyErr);
+        }
 
         res.status(201).json({
             success: true,
@@ -511,6 +526,28 @@ export const counterBid = async (req, res) => {
             { path: 'product', select: 'title price images seller location' },
             { path: 'bidder', select: 'name email phone location' }
         ]);
+
+        // Notify the next actor who needs to respond
+        try {
+            const nextActor = bid.awaitingAction; // 'vendor' or 'buyer'
+            if (nextActor === 'vendor') {
+                const sellerUser = await User.findById(bid.product?.seller).select('pushToken');
+                await sendPushToUsers([sellerUser], {
+                    title: 'New counter offer',
+                    body: `${bid.bidder?.name || 'Buyer'} sent a counter offer on ${bid.product?.title}`,
+                    data: { type: 'bid_counter', bidId: String(bid._id), productId: String(bid.product?._id) }
+                });
+            } else if (nextActor === 'buyer') {
+                const buyerUser = await User.findById(bid.bidder).select('pushToken');
+                await sendPushToUsers([buyerUser], {
+                    title: 'Vendor countered your offer',
+                    body: `New counter offer on ${bid.product?.title}`,
+                    data: { type: 'bid_counter', bidId: String(bid._id), productId: String(bid.product?._id) }
+                });
+            }
+        } catch (notifyErr) {
+            console.warn('Push notify (counter bid) failed:', notifyErr?.message || notifyErr);
+        }
 
         return res.json({ success: true, message: 'Counter offer recorded', data: bid });
     } catch (error) {

@@ -1,6 +1,7 @@
 import Message from '../models/Message.js';
-
-import User from '../models/User.js';  
+import Group from '../models/Group.js';
+import User from '../models/User.js';
+import { sendPushToUsers } from '../utils/push.js';
 // @desc    Get messages for group
 export const getGroupMessages = async (req, res) => {
   try {
@@ -17,7 +18,7 @@ export const getGroupMessages = async (req, res) => {
 // @desc    Create new message
 export const createMessage = async (req, res) => {
   try {
-    const { groupId, text, type = 'text', metadata } = req.body;
+    const { groupId, text, type = 'text', metadata, recipientId } = req.body;
 
     const message = await Message.create({
       sender: req.user._id,
@@ -31,6 +32,23 @@ export const createMessage = async (req, res) => {
       path: 'sender',
       select: 'name pic currentStatus mood'
     });
+
+    // Push notifications
+    try {
+      const sender = await User.findById(req.user._id).select('name');
+      const title = 'New message';
+      const body = `${sender?.name || 'User'}: ${text}`;
+      if (recipientId) {
+        const recipient = await User.findById(recipientId).select('pushToken');
+        await sendPushToUsers([recipient], { title, body, data: { type: 'chat', groupId, senderId: req.user._id } });
+      } else if (groupId) {
+        const group = await Group.findById(groupId).populate('members', 'pushToken _id');
+        const targets = (group?.members || []).filter(m => String(m._id) !== String(req.user._id));
+        await sendPushToUsers(targets, { title, body, data: { type: 'group_chat', groupId, senderId: req.user._id } });
+      }
+    } catch (e) {
+      console.error('Push notification error:', e?.message || e);
+    }
 
     res.status(201).json(populatedMessage);
   } catch (error) {

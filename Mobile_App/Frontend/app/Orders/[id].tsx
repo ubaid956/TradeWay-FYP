@@ -6,6 +6,8 @@ import { useAppSelector } from '@/src/store/hooks';
 import { useStripe } from '@stripe/stripe-react-native';
 import { formatCurrency } from '@/src/utils/currency';
 import { globalStyles } from '@/Styles/globalStyles';
+import CustomHeader from '../Components/Headers/CustomHeader';
+import { disputesService } from '@/src/services/disputes';
 
 const { width } = Dimensions.get('window');
 
@@ -17,6 +19,7 @@ const OrderDetail = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [hasOpenDispute, setHasOpenDispute] = useState(false);
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const auth = useAppSelector(state => state.auth);
@@ -30,6 +33,7 @@ const OrderDetail = () => {
       const resp = await apiService.orders.getOrderById(id);
       if (resp.success) {
         const data = resp.data?.data || resp.data;
+        console.log('ORDER DETAIL LOADED:', JSON.stringify(data, null, 2));
         setOrder(data || null);
       } else {
         setError(resp.error || 'Failed to load order');
@@ -38,6 +42,22 @@ const OrderDetail = () => {
     };
     fetchOrder();
   }, [id]);
+
+  // Check if an open dispute already exists for this order (for current user)
+  useEffect(() => {
+    const checkDispute = async () => {
+      try {
+        if (!order?._id) return;
+        const my = await disputesService.getMyDisputes();
+        const openForOrder = Array.isArray(my) && my.some((d: any) => String(d.orderId?._id || d.orderId) === String(order._id) && d.status === 'open');
+        setHasOpenDispute(Boolean(openForOrder));
+      } catch (e) {
+        // non-blocking
+        console.error('Failed checking existing disputes:', e);
+      }
+    };
+    checkDispute();
+  }, [order?._id]);
 
   const productImage = useMemo(() => {
     const imgs = order?.product?.images;
@@ -81,15 +101,17 @@ const OrderDetail = () => {
     : '—';
 
   return (
-    <SafeAreaView style={[globalStyles.container, { backgroundColor: '#f9fafb' , marginTop: 70 }]}> 
+    <SafeAreaView style={[globalStyles.container, { backgroundColor: '#f9fafb'}]}> 
       <ScrollView showsVerticalScrollIndicator={false} style={{ backgroundColor: '#f9fafb' }}>
-        <View style={styles.headerRow}>
+        {/* <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Text style={styles.backTxt}>{'< Back'}</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Order Details</Text>
           <View style={{ width: 70 }} />
-        </View>
+        </View> */}
+              <CustomHeader title="Order Details" onBackPress={() => router.back()} />
+        
 
         <View style={styles.section}>
           <Text style={styles.label}>Order</Text>
@@ -141,6 +163,51 @@ const OrderDetail = () => {
           <Text style={styles.subtle}>{order.buyer?.phone}</Text>
         </View>
 
+          {/* Debug logging for button condition */}
+          {(() => {
+            console.log('=== DISPUTE BUTTON CHECK ===');
+            console.log('currentUser:', currentUser);
+            console.log('currentUser._id:', currentUser?._id);
+            console.log('order.buyer:', order.buyer);
+            console.log('order.buyer?._id:', order.buyer?._id);
+            console.log('order.seller:', order.seller);
+            console.log('order.seller?._id:', order.seller?._id);
+            console.log('Is buyer?', currentUser?._id === order.buyer?._id);
+            console.log('Is seller (object)?', currentUser?._id === order.seller?._id);
+            console.log('Is seller (string)?', currentUser?._id === order.seller);
+            console.log('Should show button?', currentUser && (
+              currentUser._id === order.buyer?._id || 
+              currentUser._id === order.seller?._id || 
+              currentUser._id === order.seller
+            ));
+            return null;
+          })()}
+
+        {/* Raise Dispute Button — only buyer; disable if already raised */}
+        {currentUser && String(currentUser._id) === String(order.buyer?._id) && (
+          <View style={{ paddingHorizontal: width * 0.05, marginBottom: 20, marginTop: 10 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: hasOpenDispute ? '#9CA3AF' : '#ef4444', padding: 14, borderRadius: 10, alignItems: 'center' }}
+              disabled={hasOpenDispute}
+              onPress={async () => {
+                try {
+                  console.log('Creating dispute for order:', order._id);
+                  console.log('Current user:', currentUser._id);
+                  console.log('Order buyer:', order.buyer?._id);
+                  const dispute = await disputesService.createDispute(order._id, 'Issue with this order');
+                  console.log('Dispute created:', dispute);
+                  router.push(`/Profile_Pages/DisputeDetail?id=${dispute._id}`);
+                } catch (e: any) {
+                  console.error('Dispute creation error:', e);
+                  alert(e.message || 'Failed to create dispute');
+                }
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{hasOpenDispute ? 'Dispute Raised' : 'Raise Dispute'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Pay Now button for buyer when order is unpaid */}
         {currentUser && (currentUser._id === order.buyer?._id) && order.payment?.status !== 'paid' && (
           <View style={{ paddingHorizontal: width * 0.05, marginBottom: 40 }}>
@@ -190,6 +257,9 @@ const OrderDetail = () => {
         {loading ? (
           <ActivityIndicator size="small" color="#2563EB" />
         ) : null}
+        
+        {/* Extra padding at bottom for scrolling */}
+        <View style={{ height: 50 }} />
       </ScrollView>
     </SafeAreaView>
   );

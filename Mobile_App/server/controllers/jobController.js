@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Shipment from '../models/Shipment.js';
 import User from '../models/User.js';
+import { sendPushToUsers } from '../utils/push.js';
 
 const JOB_STATUSES = ['open', 'assigned', 'in_transit', 'delivered', 'cancelled'];
 const STATUS_TRANSITIONS = {
@@ -106,6 +107,20 @@ export const createJob = async (req, res) => {
 			{ path: 'product', select: 'title images location' },
 			{ path: 'buyer', select: 'name phone' }
 		]);
+
+		// Notify all drivers that a new cargo job has been posted
+		try {
+			const drivers = await User.find({ role: 'driver', pushToken: { $exists: true, $ne: null } }).select('pushToken');
+			if (drivers?.length) {
+				await sendPushToUsers(drivers, {
+					title: 'New cargo job available',
+					body: `${job.product?.title || 'Cargo'} pickup ready` ,
+					data: { type: 'job_created', jobId: String(job._id), productId: String(job.product?._id || '') }
+				});
+			}
+		} catch (notifyErr) {
+			console.warn('Push notify (job create) failed:', notifyErr?.message || notifyErr);
+		}
 
 		return res.status(201).json({ success: true, message: 'Cargo job posted', data: job });
 	} catch (error) {

@@ -19,6 +19,7 @@ export function AuthProvider({ children }) {
 	}, []);
 
 	const login = async (email, password) => {
+		// Mobile_App server exposes admin auth at /api/admin/auth/login
 		const { data } = await api.post("/api/admin/auth/login", {
 			email,
 			password,

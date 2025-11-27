@@ -18,6 +18,8 @@ import orderRoutes from './routes/orderRoutes.js';
 import kycRoutes from './routes/kycRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import disputeRoutes from './routes/disputeRoutes.js';
+import adminDisputeRoutes from './routes/adminDisputeRoutes.js';
 import adminAuthRoutes from './routes/adminAuthRoutes.js';
 import industryRoutes from './routes/industryRoutes.js';
 import gradingRoutes from './routes/gradingRoutes.js';
@@ -26,8 +28,9 @@ import jobRoutes from './routes/jobRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
 import trackingRoutes from './routes/trackingRoutes.js';
 import routeRoutes from './routes/routeRoutes.js';
+import statsRoutes from './routes/statsRoutes.js';
 import { protect, requireRoles } from './middleware/auth.js';
-// import groupRoutes from './routes/groupRoutes.js';
+import groupRoutes from './routes/groupRoutes.js';
 // import errorHandler from './middleware/errorHandler.js';
 // import initSocket from './utils/socket.js';
 
@@ -77,15 +80,18 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/routes', routeRoutes);
+app.use('/api/stats', statsRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/disputes', adminDisputeRoutes);
 app.use('/api/admin', protect, requireRoles('admin'), adminRoutes);
+app.use('/api/disputes', disputeRoutes);
 app.use('/api/industry', protect, requireRoles('admin'), industryRoutes);
 // Payments
 app.use('/api/payments', paymentRoutes);
 
 // Stripe webhook endpoint (must be reachable by Stripe)
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhook);
-// app.use('/api/groups', groupRoutes);
+app.use('/api/groups', groupRoutes);
 
 // ✅ Error handling middleware (optional)
 // app.use(errorHandler);

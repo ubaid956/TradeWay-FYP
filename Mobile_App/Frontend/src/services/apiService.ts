@@ -15,6 +15,7 @@ export interface ApiResponse<T = any> {
 export interface LoginRequest {
     email: string;
     password: string;
+    pushToken?: string | null;
 }
 
 export interface RegisterRequest {
@@ -23,6 +24,7 @@ export interface RegisterRequest {
     password: string;
     phone?: string;
     role: string;
+    pushToken?: string | null;
 }
 
 export interface User {
@@ -347,10 +349,10 @@ export const authApi = {
     },
 
     // Google authentication
-    googleAuth: async (token: string): Promise<ApiResponse<AuthResponse>> => {
+    googleAuth: async (token: string, pushToken?: string | null): Promise<ApiResponse<AuthResponse>> => {
         return apiRequest<AuthResponse>(API_ENDPOINTS.AUTH.GOOGLE, {
             method: 'POST',
-            body: JSON.stringify({ token }),
+            body: JSON.stringify({ token, pushToken }),
         });
     },
 

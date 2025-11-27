@@ -14,7 +14,8 @@ const MessageComponent = ({
   message, 
   time, 
   unreadCount,
-  profileImage ,
+  profileImage,
+  customIcon,
   onPress
 }) => {
   const { width, height } = useWindowDimensions();
@@ -31,19 +32,23 @@ const MessageComponent = ({
     ]}
     onPress={onPress}>
       <View style={styles.messageContainer}>
-        {/* Profile Image */}
+        {/* Profile Image or Custom Icon */}
         <View style={styles.profileImageContainer}>
-          <Image 
-            source={profileImage} 
-            style={[
-              styles.profileImage,
-              {
-                width: isTablet ? 50 : 50,
-                height: isTablet ? 50 : 50,
-                borderRadius: isTablet ? 25 : 25,
-              }
-            ]} 
-          />
+          {customIcon ? (
+            customIcon
+          ) : (
+            <Image 
+              source={profileImage} 
+              style={[
+                styles.profileImage,
+                {
+                  width: isTablet ? 50 : 50,
+                  height: isTablet ? 50 : 50,
+                  borderRadius: isTablet ? 25 : 25,
+                }
+              ]} 
+            />
+          )}
         </View>
 
         {/* Message Content */}

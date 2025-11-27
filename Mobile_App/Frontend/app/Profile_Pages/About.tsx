@@ -170,6 +170,13 @@ const About = () => {
                             />
 
                             <View style={{ marginBottom: height * 0.015 }} />
+                            {/* Disputes entry */}
+                            <TouchableOpacity
+                                style={styles.disputesButton}
+                                onPress={() => router.push('/Profile_Pages/DisputesList')}
+                            >
+                                <Text style={styles.disputesButtonText}>View My Disputes</Text>
+                            </TouchableOpacity>
 
                             <CustomButton
                                 title={
@@ -294,6 +301,17 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: width * 0.035,
         fontWeight: 'bold',
+    },
+    disputesButton: {
+        marginTop: 16,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: '#f3f4f6',
+        alignItems: 'center'
+    },
+    disputesButtonText: {
+        fontWeight: '600',
+        color: '#111827'
     },
 });
 
